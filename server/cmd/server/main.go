@@ -30,11 +30,18 @@ func main() {
 	// Apply middleware
 	r.Use(middleware.CORS(cfg.AllowedOrigin))
 
-	// API Sub-router
+	// Auth routes (public)
+	r.Mount("/api/v1/auth", handler.AuthHandler())
+
+	// API Sub-router with auth middleware + test mode bypass
 	r.Route("/api/v1", func(api chi.Router) {
+		api.Use(middleware.RequireAuth(cfg.TestMode))
 		api.Get("/health", handler.HealthCheck)
 		api.Post("/analysis", analysisHandler.HandleAnalysis)
 	})
+
+	// Contact router (public)
+	r.Mount("/api/v1/contact", handler.ContactRouter())
 
 	// Embedded Static Frontend Handler
 	contentFS, _ := fs.Sub(publicFS, "public")

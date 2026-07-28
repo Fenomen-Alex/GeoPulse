@@ -11,6 +11,8 @@ export const [travelMode, setTravelMode] = createSignal<'walk' | 'bike' | 'drive
 export const [maxMinutes, setMaxMinutes] = createSignal<number>(15);
 export const [isAnalyzing, setIsAnalyzing] = createSignal<boolean>(false);
 export const [analysisResult, setAnalysisResult] = createSignal<any | null>(null);
+export const [remainingQuota, setRemainingQuota] = createSignal<number>(15);
+export const [showQuotaModal, setShowQuotaModal] = createSignal<boolean>(false);
 
 export function handleMapClick(coords: { lat: number; lng: number }) {
   setOrigin(coords);
@@ -33,8 +35,19 @@ export async function runAnalysis() {
         minutes: maxMinutes(),
       }),
     });
+
+    if (res.status === 429) {
+      setShowQuotaModal(true);
+      return;
+    }
+
+    if (!res.ok) throw new Error('Analysis failed');
+
     const data = await res.json();
     setAnalysisResult(data);
+    if (typeof data.remaining_quota === 'number') {
+      setRemainingQuota(data.remaining_quota);
+    }
   } catch (err) {
     console.error('Analysis failed', err);
   } finally {

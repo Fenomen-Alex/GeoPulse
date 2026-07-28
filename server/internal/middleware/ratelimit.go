@@ -48,7 +48,7 @@ func (s *RateLimiterStore) getLimiter(key string) *rate.Limiter {
 
 	if val, ok := s.mu.Load(key); ok {
 		entry := val.(*limiterEntry)
-		// Reset limiter if lifetime has expired
+		// Reuse limiter if lifetime has not expired
 		if now.Sub(entry.createdAt) < s.lifetime {
 			return entry.limiter
 		}

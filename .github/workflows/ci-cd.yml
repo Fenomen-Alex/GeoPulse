@@ -1,0 +1,46 @@
+name: GeoPulse CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Test Go Backend
+        run: |
+          cd server
+          go test -v ./...
+
+      - name: Test & Build SolidJS Frontend
+        run: |
+          cd client
+          npm ci
+          npm run build
+
+      - name: Validate Container Build
+        run: docker build -t geopulse-validate .
+
+  deploy:
+    needs: test-and-validate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render Deployment
+        run: |
+          curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}

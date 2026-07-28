@@ -1,0 +1,36 @@
+/.idea
+AGENTS.md
+
+# Dependencies
+node_modules/
+client/dist/
+server/bin/
+
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Playwright test artifacts
+.playwright-mcp/
+
+# Go Binaries & Local DB
+server/cmd/server/public/
+server/geopulse
+server/main
+*.db
+*.db-journal
+*.db-wal
+
+# IDE & OS Junk
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.suo
+*.user
+
+# Docker Artifacts
+.docker/

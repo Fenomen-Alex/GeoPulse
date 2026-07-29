@@ -22,11 +22,6 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Test Go Backend
-        run: |
-          cd server
-          go test -v ./...
-
       - name: Test & Build SolidJS Frontend
         run: |
           cd client

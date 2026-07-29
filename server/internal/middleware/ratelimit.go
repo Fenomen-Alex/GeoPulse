@@ -1,103 +1,74 @@
 package middleware
 
 import (
-	"fmt"
-	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
 )
 
-// limiterEntry holds a rate limiter and its creation time for expiry tracking.
-type limiterEntry struct {
-	limiter   *rate.Limiter
-	createdAt time.Time
+type rateLimitEntry struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
 }
 
-// RateLimiterStore maintains concurrent-safe rate limiters keyed by identifier.
-type RateLimiterStore struct {
-	mu       sync.Map
-	rate     rate.Limit
-	burst    int
-	lifetime time.Duration
+var (
+	rateLimits   sync.Map
+	cleanupTimer *time.Timer
+)
+
+func init() {
+	cleanupTimer = time.AfterFunc(5*time.Minute, cleanupRateLimits)
 }
 
-// NewGuestRateLimiter creates a store enforcing 10 requests/hour per IP.
-func NewGuestRateLimiter() *RateLimiterStore {
-	return &RateLimiterStore{
-		rate:     rate.Every(time.Hour / 10), // 10 requests per hour
-		burst:    10,
-		lifetime: time.Hour,
-	}
-}
-
-// NewAuthRateLimiter creates a store enforcing 200 requests/day per user ID.
-func NewAuthRateLimiter() *RateLimiterStore {
-	return &RateLimiterStore{
-		rate:     rate.Every(24 * time.Hour / 200), // 200 requests per day
-		burst:    200,
-		lifetime: 24 * time.Hour,
-	}
-}
-
-// getLimiter retrieves or creates a rate limiter for the given key.
-func (s *RateLimiterStore) getLimiter(key string) *rate.Limiter {
+func cleanupRateLimits() {
 	now := time.Now()
-
-	if val, ok := s.mu.Load(key); ok {
-		entry := val.(*limiterEntry)
-		// Reuse limiter if lifetime has not expired
-		if now.Sub(entry.createdAt) < s.lifetime {
-			return entry.limiter
+	rateLimits.Range(func(key, value interface{}) bool {
+		entry := value.(*rateLimitEntry)
+		if now.Sub(entry.lastSeen) > 10*time.Minute {
+			rateLimits.Delete(key)
 		}
-	}
-
-	limiter := rate.NewLimiter(s.rate, s.burst)
-	s.mu.Store(key, &limiterEntry{
-		limiter:   limiter,
-		createdAt: now,
+		return true
 	})
-	return limiter
+	cleanupTimer.Reset(5 * time.Minute)
 }
 
-// GuestRateLimit returns middleware that rate-limits by client IP.
-// Guest Quota: 10 requests/hour per IP.
-func GuestRateLimit(store *RateLimiterStore) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := extractIP(r)
-			limiter := store.getLimiter(ip)
+func getLimiter(ip string) *rate.Limiter {
+	raw, _ := rateLimits.LoadOrStore(ip, &rateLimitEntry{
+		limiter:  rate.NewLimiter(rate.Every(time.Minute), 10),
+		lastSeen: time.Now(),
+	})
+	entry := raw.(*rateLimitEntry)
+	entry.lastSeen = time.Now()
+	return entry.limiter
+}
 
+// RateLimitMiddleware applies token-bucket rate limiting per IP.
+// Guest: 10 requests/minute. Authenticated users are exempt.
+func RateLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/health" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/assets/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		cookie, err := r.Cookie("geopulse_session")
+		if err != nil || cookie.Value == "" {
+			ip := r.RemoteAddr
+			limiter := getLimiter(ip)
 			if !limiter.Allow() {
-				resetTime := time.Now().Add(store.lifetime)
-				w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", resetTime.Unix()))
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusTooManyRequests)
-				w.Write([]byte(`{"error":"rate limit exceeded","message":"guest quota exhausted, please sign in for higher limits"}`))
+				w.Header().Set("X-RateLimit-Reset", time.Now().Add(time.Minute).Format(time.RFC3339))
+				http.Error(w, `{"error":"rate limit exceeded"}`, http.StatusTooManyRequests)
 				return
 			}
+		}
 
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-// extractIP retrieves the client IP address from the request.
-func extractIP(r *http.Request) string {
-	// Check X-Forwarded-For first (for proxied requests)
-	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		return forwarded
-	}
-	// Check X-Real-IP
-	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
-		return realIP
-	}
-	// Fall back to RemoteAddr
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return ip
+		next.ServeHTTP(w, r)
+	})
 }

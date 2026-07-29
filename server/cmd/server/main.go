@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"path"
 
 	"github.com/go-chi/chi/v5"
 
@@ -29,6 +30,7 @@ func main() {
 
 	// Apply middleware
 	r.Use(middleware.CORS(cfg.AllowedOrigin))
+	r.Use(middleware.RateLimitMiddleware)
 
 	// Auth routes (public)
 	r.Mount("/api/v1/auth", handler.AuthHandler())
@@ -43,10 +45,38 @@ func main() {
 	// Contact router (public)
 	r.Mount("/api/v1/contact", handler.ContactRouter())
 
-	// Embedded Static Frontend Handler
+	// Embedded Static Frontend Handler with SPA fallback
 	contentFS, _ := fs.Sub(publicFS, "public")
 	fileServer := http.FileServer(http.FS(contentFS))
-	r.Handle("/*", fileServer)
+	indexBytes, _ := fs.ReadFile(contentFS, "index.html")
+
+	r.Handle("/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cleanPath := path.Clean(r.URL.Path)
+		if cleanPath[0] == '/' {
+			cleanPath = cleanPath[1:]
+		}
+
+		// 1. If the file exists in publicFS, serve it directly
+		if cleanPath != "" {
+			f, err := contentFS.Open(cleanPath)
+			if err == nil {
+				f.Close()
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		// 2. SPA navigation paths — serve index.html for client-side routing
+		//    All asset/file requests (with extensions) and tile/data paths
+		//    that don't match embedded files get a 404 to prevent MIME mismatches.
+		if path.Ext(cleanPath) != "" {
+			http.NotFound(w, r)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(indexBytes)
+	}))
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Printf("GeoPulse server starting on %s", addr)

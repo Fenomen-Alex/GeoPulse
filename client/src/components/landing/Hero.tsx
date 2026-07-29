@@ -1,13 +1,14 @@
 import type { Component } from 'solid-js';
 
-export const Hero: Component = () => {
-  const handleLogin = () => {
-    window.location.href = '/api/v1/auth/login';
-  };
+const handleLogin = () => {
+  window.location.href = '/api/v1/auth/login';
+};
 
+export const Hero: Component = () => {
   const scrollToContact = () => {
     document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' });
   };
+
 
   return (
     <section class="relative w-full min-h-[80vh] flex items-center justify-center bg-zinc-950 overflow-hidden">

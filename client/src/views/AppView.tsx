@@ -1,40 +1,39 @@
 import type { Component } from 'solid-js';
 import { MapCanvas } from '../components/MapCanvas';
+import { ConfigPanel } from '../components/ConfigPanel';
+import { AnalyticsDrawer } from '../components/AnalyticsDrawer';
+import { QuotaBar } from '../components/QuotaBar';
+import { TopBar } from '../components/TopBar';
 
-interface AppViewProps {
-  user: any;
-}
-
-export const AppView: Component<AppViewProps> = (props) => {
+export const AppView: Component<{ user: any }> = (props) => {
   return (
-    <div class="min-h-screen bg-zinc-950">
-      <div class="p-4 flex items-center justify-between border-b border-zinc-800">
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-400 to-cyan-600"></div>
-          <h1 class="text-xl font-bold text-cyan-400">GeoPulse</h1>
-        </div>
-        <div class="flex items-center gap-4">
-          <div class="px-3 py-1.5 rounded-full bg-cyan-500/10 text-cyan-400 text-sm">
-            {props.user.daily_quota} / 15 remaining
-          </div>
+    <div class="h-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden">
+      <TopBar />
+
+      <div class="flex items-center gap-3 px-4 py-2 border-b border-zinc-800/60 bg-zinc-900/50">
+        <QuotaBar />
+        <div class="ml-auto flex items-center gap-3">
+          <span class="text-xs text-zinc-400 font-medium">{props.user.name}</span>
           <img
             src={props.user.avatar_url}
             alt={props.user.name}
-            class="w-8 h-8 rounded-full"
+            class="w-7 h-7 rounded-full border border-zinc-700"
           />
         </div>
       </div>
 
-      <div class="flex-1 p-6">
-        <div class="max-w-2xl mx-auto">
-          <div class="mb-8">
-            <h2 class="text-2xl font-bold text-zinc-100 mb-2">Welcome, {props.user.name}</h2>
-            <p class="text-zinc-400">
-              You're all set to start using GeoPulse. Click the map to set your origin point and start analyzing.
-            </p>
-          </div>
-          <MapCanvas />
-        </div>
+      <div class="flex-1 flex overflow-hidden">
+        <aside class="w-80 flex-shrink-0 border-r border-zinc-800/60 bg-zinc-900/30 overflow-y-auto">
+          <ConfigPanel />
+        </aside>
+
+          <main class="flex-1 relative h-full overflow-hidden">
+              <MapCanvas />
+          </main>
+
+        <aside class="w-80 flex-shrink-0 border-l border-zinc-800/60 bg-zinc-900/30 overflow-y-auto">
+          <AnalyticsDrawer />
+        </aside>
       </div>
     </div>
   );

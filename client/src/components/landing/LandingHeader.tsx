@@ -1,14 +1,7 @@
 import type { Component } from 'solid-js';
 
-const handleLogin = async () => {
-  try {
-    const res = await fetch('/api/v1/auth/login');
-    if (res.ok) {
-      window.location.href = '/app';
-    }
-  } catch {
-    console.error('Login failed');
-  }
+const handleLogin = () => {
+  window.location.href = '/api/v1/auth/login';
 };
 
 export const LandingHeader: Component = () => {

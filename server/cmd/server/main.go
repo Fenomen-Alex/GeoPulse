@@ -13,6 +13,7 @@ import (
 	"github.com/alex/geopulse/server/internal/config"
 	"github.com/alex/geopulse/server/internal/handler"
 	"github.com/alex/geopulse/server/internal/middleware"
+	"github.com/alex/geopulse/server/internal/quota"
 )
 
 //go:embed all:public
@@ -24,7 +25,11 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	analysisHandler := handler.NewAnalysisHandler(cfg)
+	quotaTracker := quota.New()
+
+	analysisHandler := handler.NewAnalysisHandler(cfg, quotaTracker)
+	routeHandler := handler.NewRouteHandler(cfg, quotaTracker)
+	geocodeHandler := handler.NewGeocodeHandler()
 
 	r := chi.NewRouter()
 
@@ -33,13 +38,15 @@ func main() {
 	r.Use(middleware.RateLimitMiddleware)
 
 	// Auth routes (public)
-	r.Mount("/api/v1/auth", handler.AuthHandler())
+	r.Mount("/api/v1/auth", handler.AuthHandler(cfg.TestMode))
 
 	// API Sub-router with auth middleware + test mode bypass
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Use(middleware.RequireAuth(cfg.TestMode))
 		api.Get("/health", handler.HealthCheck)
 		api.Post("/analysis", analysisHandler.HandleAnalysis)
+		api.Post("/routes", routeHandler.Handle)
+		api.Get("/geocode", geocodeHandler.Handle)
 	})
 
 	// Contact router (public)

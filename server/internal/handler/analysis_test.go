@@ -8,11 +8,12 @@ import (
 	"testing"
 
 	"github.com/alex/geopulse/server/internal/config"
+	"github.com/alex/geopulse/server/internal/quota"
 )
 
 func TestHandleAnalysis_Success(t *testing.T) {
 	cfg := &config.Config{}
-	h := NewAnalysisHandler(cfg)
+	h := NewAnalysisHandler(cfg, quota.New())
 
 	body := `{"lat":40.7128,"lng":-74.0060,"mode":"walk","minutes":15}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/analysis", bytes.NewBufferString(body))
@@ -52,7 +53,7 @@ func TestHandleAnalysis_Success(t *testing.T) {
 
 func TestHandleAnalysis_InvalidMethod(t *testing.T) {
 	cfg := &config.Config{}
-	h := NewAnalysisHandler(cfg)
+	h := NewAnalysisHandler(cfg, quota.New())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/analysis", nil)
 	w := httptest.NewRecorder()
@@ -66,7 +67,7 @@ func TestHandleAnalysis_InvalidMethod(t *testing.T) {
 
 func TestHandleAnalysis_InvalidBody(t *testing.T) {
 	cfg := &config.Config{}
-	h := NewAnalysisHandler(cfg)
+	h := NewAnalysisHandler(cfg, quota.New())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/analysis", bytes.NewBufferString("not json"))
 	req.Header.Set("Content-Type", "application/json")
@@ -81,7 +82,7 @@ func TestHandleAnalysis_InvalidBody(t *testing.T) {
 
 func TestHandleAnalysis_OutOfRangeCoords(t *testing.T) {
 	cfg := &config.Config{}
-	h := NewAnalysisHandler(cfg)
+	h := NewAnalysisHandler(cfg, quota.New())
 
 	body := `{"lat":100,"lng":200,"mode":"walk","minutes":15}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/analysis", bytes.NewBufferString(body))
@@ -97,7 +98,7 @@ func TestHandleAnalysis_OutOfRangeCoords(t *testing.T) {
 
 func TestHandleAnalysis_DefaultsInvalidMode(t *testing.T) {
 	cfg := &config.Config{}
-	h := NewAnalysisHandler(cfg)
+	h := NewAnalysisHandler(cfg, quota.New())
 
 	body := `{"lat":40.7128,"lng":-74.0060,"mode":"helicopter","minutes":15}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/analysis", bytes.NewBufferString(body))
@@ -132,5 +133,32 @@ func TestGetBandMinutes(t *testing.T) {
 		if len(result) != len(tt.expected) {
 			t.Errorf("getBandMinutes(%d): expected %v, got %v", tt.input, tt.expected, result)
 		}
+	}
+}
+
+func TestHandleAnalysis_QuotaExceeded(t *testing.T) {
+	cfg := &config.Config{}
+	h := NewAnalysisHandler(cfg, quota.New())
+
+	body := `{"lat":40.7128,"lng":-74.0060,"mode":"walk","minutes":15}`
+
+	for i := 0; i < quota.DefaultDailyQuota; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/analysis", bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+		h.HandleAnalysis(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("run %d: expected 200, got %d", i+1, w.Code)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/analysis", bytes.NewBufferString(body))
+	w := httptest.NewRecorder()
+	h.HandleAnalysis(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 after quota exhausted, got %d", w.Code)
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte("Daily quota exceeded")) {
+		t.Errorf("expected quota error payload, got %s", w.Body.String())
 	}
 }

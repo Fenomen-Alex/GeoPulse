@@ -11,7 +11,18 @@ export const useAuth = () => {
     authenticated: false,
   });
 
+  const isTestMode = () =>
+    import.meta.env.VITE_TEST_MODE === 'true' || import.meta.env.VITE_NODE_ENV === 'test';
+
   const checkAuthStatus = async () => {
+    if (isTestMode()) {
+      setAuthStatus({
+        authenticated: true,
+        user: { id: 'test-user', name: 'Test User', email: 'test@geopulse.local' },
+      });
+      return;
+    }
+
     try {
       const res = await fetch('/api/v1/auth/status');
       if (res.ok) {
@@ -34,6 +45,14 @@ export const useAuth = () => {
   };
 
   const login = async () => {
+    if (isTestMode()) {
+      setAuthStatus({
+        authenticated: true,
+        user: { id: 'test-user', name: 'Test User', email: 'test@geopulse.local' },
+      });
+      return { success: true };
+    }
+
     try {
       // Open Google Auth modal
       const res = await fetch('/api/v1/auth/login');
@@ -54,6 +73,8 @@ export const useAuth = () => {
   };
 
   const logout = async () => {
+    if (isTestMode()) return { success: true };
+
     try {
       const res = await fetch('/api/v1/auth/logout', { method: 'POST' });
       if (res.ok) {

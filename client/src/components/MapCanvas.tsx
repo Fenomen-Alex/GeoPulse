@@ -1,17 +1,177 @@
-import { onMount, onCleanup } from 'solid-js';
+import { createEffect, createSignal, onMount, onCleanup } from 'solid-js';
 import type { Component } from 'solid-js';
 import * as maplibregl from 'maplibre-gl';
 
-// 💡 1. Native Vite worker isolation pipeline bundle
+// Native Vite worker isolation pipeline bundle
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { handleMapClick, setOrigin, setAnalysisResult } from '../store/analysisStore';
+import {
+  activeTool,
+  origin,
+  mapFocus,
+  routeOrigin,
+  routeDestination,
+  routeResult,
+  setRouteOrigin,
+  setRouteDestination,
+  setRouteResult,
+  setOrigin,
+  setAnalysisResult,
+  handleMapClick,
+} from '../store/analysisStore';
 
 maplibregl.setWorkerUrl(workerUrl);
 
 export const MapCanvas: Component = () => {
   let container!: HTMLDivElement;
   let map: maplibregl.Map | undefined;
+  const [mapReady, setMapReady] = createSignal(false);
   let marker: maplibregl.Marker | undefined;
+  let startMarker: maplibregl.Marker | undefined;
+  let endMarker: maplibregl.Marker | undefined;
+
+  function addRouteLayers() {
+    if (!map || map.getSource('route-line')) return;
+
+    map.addSource('route-line', {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: [] },
+        properties: {},
+      },
+    });
+
+    map.addLayer({
+      id: 'route-casing',
+      type: 'line',
+      source: 'route-line',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#0e7490', 'line-width': 10, 'line-opacity': 0.65 },
+    });
+
+    map.addLayer({
+      id: 'route-line',
+      type: 'line',
+      source: 'route-line',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#06b6d4', 'line-width': 5 },
+    });
+  }
+
+  function drawRoute() {
+    if (!map) return;
+
+    const result = routeResult();
+    if (!result?.geojson) return;
+
+    addRouteLayers();
+    const source = map.getSource('route-line') as maplibregl.GeoJSONSource | undefined;
+    if (source) source.setData(result.geojson);
+
+    const coords: [number, number][] | undefined = result.geojson?.geometry?.coordinates;
+    if (coords?.length) {
+      const bounds = coords.reduce(
+        (b, c) => b.extend([c[0], c[1]]),
+        new maplibregl.LngLatBounds(coords[0], coords[0]),
+      );
+      map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 800 });
+    }
+  }
+
+  function clearRouteLayer() {
+    if (!map) return;
+    if (map.getLayer('route-line')) map.removeLayer('route-line');
+    if (map.getLayer('route-casing')) map.removeLayer('route-casing');
+    if (map.getSource('route-line')) map.removeSource('route-line');
+  }
+
+  function clearIsochroneMarker() {
+    marker?.remove();
+    marker = undefined;
+  }
+
+  function clearRouteMarkers() {
+    startMarker?.remove();
+    startMarker = undefined;
+    endMarker?.remove();
+    endMarker = undefined;
+  }
+
+  function updateIsochroneMarker(lat: number, lng: number) {
+    if (!map) return;
+
+    if (marker) {
+      marker.setLngLat([lng, lat]);
+    } else {
+      marker = new maplibregl.Marker({ color: '#06b6d4', draggable: true })
+        .setLngLat([lng, lat])
+        .addTo(map);
+
+      marker.on('dragend', () => {
+        const lngLat = marker!.getLngLat();
+        setOrigin({ lat: lngLat.lat, lng: lngLat.lng });
+        setAnalysisResult(null);
+      });
+    }
+  }
+
+  function updateRouteStartMarker(lat: number, lng: number) {
+    if (!map) return;
+
+    if (startMarker) {
+      startMarker.setLngLat([lng, lat]);
+    } else {
+      startMarker = new maplibregl.Marker({ color: '#10b981', draggable: true })
+        .setLngLat([lng, lat])
+        .addTo(map);
+
+      startMarker.on('dragend', () => {
+        const lngLat = startMarker!.getLngLat();
+        setRouteOrigin({ lat: lngLat.lat, lng: lngLat.lng });
+        setRouteResult(null);
+      });
+    }
+  }
+
+  function updateRouteEndMarker(lat: number, lng: number) {
+    if (!map) return;
+
+    if (endMarker) {
+      endMarker.setLngLat([lng, lat]);
+    } else {
+      endMarker = new maplibregl.Marker({ color: '#ef4444', draggable: true })
+        .setLngLat([lng, lat])
+        .addTo(map);
+
+      endMarker.on('dragend', () => {
+        const lngLat = endMarker!.getLngLat();
+        setRouteDestination({ lat: lngLat.lat, lng: lngLat.lng });
+        setRouteResult(null);
+      });
+    }
+  }
+
+  function syncRouteMarkers() {
+    const origin = routeOrigin();
+    const destination = routeDestination();
+
+    if (origin) updateRouteStartMarker(origin.lat, origin.lng);
+    else {
+      startMarker?.remove();
+      startMarker = undefined;
+    }
+
+    if (destination) updateRouteEndMarker(destination.lat, destination.lng);
+    else {
+      endMarker?.remove();
+      endMarker = undefined;
+    }
+  }
+
+  function flyToFocus(focus: { lat: number; lng: number } | null | undefined) {
+    if (!map || !focus) return;
+    map.flyTo({ center: [focus.lng, focus.lat], zoom: 13, duration: 1200 });
+  }
 
   onMount(async () => {
     if (!container) return;
@@ -23,19 +183,16 @@ export const MapCanvas: Component = () => {
       const response = await fetch(styleUrl);
       const styleData = await response.json();
 
-      // 💡 2. Fix the Glyph (Fonts) fallback tracking route
       if (styleData.glyphs && styleData.glyphs.startsWith('/')) {
         styleData.glyphs = `${baseUrl}${styleData.glyphs}`;
       }
 
-      // 💡 3. Fix the Sprite layout tracking route
       if (styleData.sprite && styleData.sprite.startsWith('/')) {
         styleData.sprite = `${baseUrl}${styleData.sprite}`;
       }
 
-      // 💡 4. Fix every vector source layout tracking route
       if (styleData.sources) {
-        Object.keys(styleData.sources).forEach((sourceKey) => {
+        Object.keys(styleData.sources).forEach((sourceKey: string) => {
           const source = styleData.sources[sourceKey];
 
           if (source.url && source.url.startsWith('/')) {
@@ -43,17 +200,13 @@ export const MapCanvas: Component = () => {
           }
 
           if (source.tiles) {
-            source.tiles = source.tiles.map((tilePath: string) => {
-              if (tilePath.startsWith('/')) {
-                return `${baseUrl}${tilePath}`;
-              }
-              return tilePath;
-            });
+            source.tiles = source.tiles.map((tilePath: string) =>
+              tilePath.startsWith('/') ? `${baseUrl}${tilePath}` : tilePath,
+            );
           }
         });
       }
 
-      // 💡 5. Launch MapLibre using the absolute data configuration
       map = new maplibregl.Map({
         container,
         style: styleData,
@@ -68,40 +221,67 @@ export const MapCanvas: Component = () => {
       });
       resizeObserver.observe(container);
 
+      map.on('load', () => {
+        setMapReady(true);
+        addRouteLayers();
+        drawRoute();
+        syncRouteMarkers();
+        flyToFocus(mapFocus());
+      });
+
       map.on('click', (e: maplibregl.MapMouseEvent) => {
         const { lng, lat } = e.lngLat;
         handleMapClick({ lat, lng });
-        updateMarker(lat, lng);
+
+        if (activeTool() === 'route') {
+          clearIsochroneMarker();
+          syncRouteMarkers();
+        } else {
+          clearRouteMarkers();
+          clearRouteLayer();
+          updateIsochroneMarker(lat, lng);
+        }
       });
 
       onCleanup(() => {
         resizeObserver.disconnect();
         marker?.remove();
+        startMarker?.remove();
+        endMarker?.remove();
         map?.remove();
       });
-
     } catch (error) {
       console.error('Failed to securely parse map structure layers:', error);
     }
   });
 
-  function updateMarker(lat: number, lng: number) {
-    if (!map) return;
-
-    if (marker) {
-      marker.setLngLat([lng, lat]);
+  createEffect(() => {
+    if (activeTool() === 'route') {
+      clearIsochroneMarker();
+      syncRouteMarkers();
+      if (routeResult()?.geojson) {
+        drawRoute();
+      } else {
+        clearRouteLayer();
+      }
     } else {
-      marker = new maplibregl.Marker({ color: '#06b6d4', draggable: true })
-          .setLngLat([lng, lat])
-          .addTo(map);
-
-      marker.on('dragend', () => {
-        const lngLat = marker!.getLngLat();
-        setOrigin({ lat: lngLat.lat, lng: lngLat.lng });
-        setAnalysisResult(null);
-      });
+      clearRouteLayer();
     }
-  }
+  });
+
+  // Fly to search results; also keep the isochrone marker in sync when the
+  // origin is set programmatically (e.g. via the search bar).
+  createEffect(() => {
+    if (!mapReady()) return;
+    const focus = mapFocus();
+    if (focus) flyToFocus(focus);
+  });
+
+  createEffect(() => {
+    if (!mapReady() || activeTool() !== 'isochrone') return;
+    const o = origin();
+    if (o) updateIsochroneMarker(o.lat, o.lng);
+  });
 
   return <div ref={container} class="absolute inset-0 w-full h-full" />;
 };

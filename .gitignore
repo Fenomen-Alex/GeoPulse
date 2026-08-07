@@ -17,7 +17,9 @@ server/bin/
 .playwright-mcp/
 
 # Go Binaries & Local DB
-server/cmd/server/public/
+server/cmd/server/public/*
+!server/cmd/server/public/index.html
+server/tmp/
 server/geopulse
 server/main
 *.db

@@ -98,16 +98,37 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
-func AuthHandler() http.Handler {
+func AuthHandler(testMode bool) http.Handler {
 	r := chi.NewRouter()
 
-	r.Get("/login", loginHandler)
+	r.Get("/login", func(w http.ResponseWriter, r *http.Request) {
+		if testMode {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+		loginHandler(w, r)
+	})
 	r.Get("/callback", callbackHandler)
 
 	r.Get("/status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if testMode {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"authenticated": true,
+				"test_mode":     true,
+				"user": map[string]interface{}{
+					"id":          "test-user",
+					"name":        "Test User",
+					"email":       "test@geopulse.local",
+					"daily_quota": 15,
+				},
+			})
+			return
+		}
+
 		cookie, err := r.Cookie("geopulse_session")
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"authenticated":false,"user":null}`))
 			return
@@ -121,7 +142,6 @@ func AuthHandler() http.Handler {
 		})
 
 		if err != nil || !token.Valid {
-			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"authenticated":false,"user":null}`))
 			return
@@ -129,7 +149,6 @@ func AuthHandler() http.Handler {
 
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"authenticated":false,"user":null}`))
 			return
@@ -139,7 +158,6 @@ func AuthHandler() http.Handler {
 		email, _ := claims["email"].(string)
 		name, _ := claims["name"].(string)
 
-		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"authenticated": true,
 			"user": map[string]interface{}{

@@ -3,8 +3,8 @@ package config
 import (
 	"os"
 
-	"github.com/joho/godotenv"
 	"fmt"
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -25,12 +25,12 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	_ = godotenv.Load("../.env")
 
-	testMode := os.Getenv("VITE_TEST_MODE") == "true"
+	testMode := os.Getenv("VITE_TEST_MODE") == "true" || os.Getenv("NODE_ENV") == "test"
 
 	requiredVars := map[string]string{
 		"PORT":               "",
-		"ALLOWED_ORIGIN":    "",
-		"JWT_SECRET":        "",
+		"ALLOWED_ORIGIN":     "",
+		"JWT_SECRET":         "",
 		"TURSO_DATABASE_URL": "",
 		"TURSO_AUTH_TOKEN":   "",
 	}

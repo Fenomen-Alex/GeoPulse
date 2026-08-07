@@ -1,0 +1,37 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=test
+      - VITE_TEST_MODE=true
+    env_file:
+      - .env
+    volumes:
+      - ./server:/app/server
+      - go-mod:/go/pkg/mod
+
+  web:
+    image: node:22-alpine
+    working_dir: /app/client
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=test
+      - VITE_TEST_MODE=true
+      - VITE_PROXY_TARGET=http://api:8080
+    env_file:
+      - .env
+    depends_on:
+      - api
+    volumes:
+      - ./client:/app/client
+      - node-modules:/app/client/node_modules
+
+volumes:
+  go-mod:
+  node-modules:

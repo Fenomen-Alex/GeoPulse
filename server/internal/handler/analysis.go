@@ -5,7 +5,9 @@ import (
 	"math"
 	"net/http"
 
+	"github.com/alex/geopulse/server/internal/auth"
 	"github.com/alex/geopulse/server/internal/config"
+	"github.com/alex/geopulse/server/internal/quota"
 )
 
 type AnalysisRequest struct {
@@ -25,22 +27,24 @@ type IsochroneBand struct {
 }
 
 type AnalysisResponse struct {
-	Lat       float64         `json:"lat"`
-	Lng       float64         `json:"lng"`
-	Mode      string          `json:"mode"`
-	Minutes   int             `json:"minutes"`
-	TotalArea float64         `json:"totalArea"`
-	PoiCount  int             `json:"poiCount"`
-	Score     int             `json:"score"`
-	Bands     []IsochroneBand `json:"bands"`
+	Lat            float64         `json:"lat"`
+	Lng            float64         `json:"lng"`
+	Mode           string          `json:"mode"`
+	Minutes        int             `json:"minutes"`
+	TotalArea      float64         `json:"totalArea"`
+	PoiCount       int             `json:"poiCount"`
+	Score          int             `json:"score"`
+	Bands          []IsochroneBand `json:"bands"`
+	RemainingQuota int             `json:"remaining_quota"`
 }
 
 type AnalysisHandler struct {
-	cfg *config.Config
+	cfg   *config.Config
+	quota *quota.Quota
 }
 
-func NewAnalysisHandler(cfg *config.Config) *AnalysisHandler {
-	return &AnalysisHandler{cfg: cfg}
+func NewAnalysisHandler(cfg *config.Config, quotaTracker *quota.Quota) *AnalysisHandler {
+	return &AnalysisHandler{cfg: cfg, quota: quotaTracker}
 }
 
 func (h *AnalysisHandler) HandleAnalysis(w http.ResponseWriter, r *http.Request) {
@@ -67,6 +71,19 @@ func (h *AnalysisHandler) HandleAnalysis(w http.ResponseWriter, r *http.Request)
 	validModes := map[string]bool{"walk": true, "bike": true, "drive": true}
 	if !validModes[req.Mode] {
 		req.Mode = "walk"
+	}
+
+	userID, ok := auth.GetUserIDFromContext(r.Context())
+	if !ok {
+		userID = "test-user"
+	}
+
+	remaining, allowed := h.quota.Consume(userID)
+	if !allowed {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte(`{"error":"Daily quota exceeded","remaining_quota":0,"message":"You have reached your limit of 15 queries today. Request an extension to get additional runs."}`))
+		return
 	}
 
 	// Speed in km/h by travel mode
@@ -121,14 +138,15 @@ func (h *AnalysisHandler) HandleAnalysis(w http.ResponseWriter, r *http.Request)
 	score := min(100, int(totalArea*8)+10)
 
 	resp := AnalysisResponse{
-		Lat:       req.Lat,
-		Lng:       req.Lng,
-		Mode:      req.Mode,
-		Minutes:   req.Minutes,
-		TotalArea: math.Round(totalArea*10) / 10,
-		PoiCount:  poiCount,
-		Score:     score,
-		Bands:     bands,
+		Lat:            req.Lat,
+		Lng:            req.Lng,
+		Mode:           req.Mode,
+		Minutes:        req.Minutes,
+		TotalArea:      math.Round(totalArea*10) / 10,
+		PoiCount:       poiCount,
+		Score:          score,
+		Bands:          bands,
+		RemainingQuota: remaining,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -19,11 +19,12 @@ const (
 )
 
 // RequireAuth middleware rejects unauthenticated requests to API endpoints.
-// When testMode is true, requests with ?test=true query parameter bypass auth.
+// When testMode is true (VITE_TEST_MODE=true or NODE_ENV=test), all requests
+// are treated as the test-user, bypassing session validation for local dev.
 func RequireAuth(testMode bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if testMode && r.URL.Query().Get("test") == "true" {
+			if testMode {
 				ctx := context.WithValue(r.Context(), UserIDKey, "test-user")
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return

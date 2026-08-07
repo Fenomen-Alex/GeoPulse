@@ -29,6 +29,7 @@ func main() {
 
 	analysisHandler := handler.NewAnalysisHandler(cfg, quotaTracker)
 	routeHandler := handler.NewRouteHandler(cfg, quotaTracker)
+	geocodeHandler := handler.NewGeocodeHandler()
 
 	r := chi.NewRouter()
 
@@ -45,6 +46,7 @@ func main() {
 		api.Get("/health", handler.HealthCheck)
 		api.Post("/analysis", analysisHandler.HandleAnalysis)
 		api.Post("/routes", routeHandler.Handle)
+		api.Get("/geocode", geocodeHandler.Handle)
 	})
 
 	// Contact router (public)

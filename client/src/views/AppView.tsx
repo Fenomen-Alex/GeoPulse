@@ -1,6 +1,7 @@
 import { Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import { MapCanvas } from '../components/MapCanvas';
+import { SearchBar } from '../components/SearchBar';
 import { ConfigPanel } from '../components/ConfigPanel';
 import { AnalyticsDrawer } from '../components/AnalyticsDrawer';
 import { RouteDrawer } from '../components/RouteDrawer';
@@ -35,6 +36,7 @@ export const AppView: Component<{ user: any }> = (props) => {
 
         <main class="flex-1 relative h-full overflow-hidden">
           <MapCanvas />
+          <SearchBar class="absolute top-4 left-1/2 -translate-x-1/2 z-10000" />
         </main>
 
         <aside class="w-80 shrink-0 border-l border-zinc-800/60 bg-zinc-900/30 overflow-y-auto">

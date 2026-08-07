@@ -24,6 +24,9 @@ export const [routeResult, setRouteResult] = createSignal<any | null>(null);
 export const [isRouting, setIsRouting] = createSignal<boolean>(false);
 export const [routeError, setRouteError] = createSignal<string | null>(null);
 
+// Latest map focus request from the search bar; MapCanvas reacts by flying to it.
+export const [mapFocus, setMapFocus] = createSignal<Location | null>(null);
+
 export function handleMapClick(coords: { lat: number; lng: number }) {
   if (activeTool() === 'route') {
     // First click sets the start point; any subsequent click repositions the destination.
@@ -47,6 +50,26 @@ export function resetRoute() {
   setRouteDestination(null);
   setRouteResult(null);
   setRouteError(null);
+}
+
+// Applies a search result: flies the map to the location and wires it into the
+// active tool — origin for isochrones, start/destination for routes.
+export function applySearchResult(loc: Location) {
+  setMapFocus(loc);
+
+  if (activeTool() === 'route') {
+    if (!routeOrigin()) {
+      setRouteOrigin(loc);
+      setRouteDestination(null);
+    } else {
+      setRouteDestination(loc);
+    }
+    setRouteResult(null);
+    setRouteError(null);
+  } else {
+    setOrigin(loc);
+    setAnalysisResult(null);
+  }
 }
 
 export async function runAnalysis() {

@@ -1,4 +1,4 @@
-import { createEffect, onMount, onCleanup } from 'solid-js';
+import { createEffect, createSignal, onMount, onCleanup } from 'solid-js';
 import type { Component } from 'solid-js';
 import * as maplibregl from 'maplibre-gl';
 
@@ -6,6 +6,8 @@ import * as maplibregl from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import {
   activeTool,
+  origin,
+  mapFocus,
   routeOrigin,
   routeDestination,
   routeResult,
@@ -22,6 +24,7 @@ maplibregl.setWorkerUrl(workerUrl);
 export const MapCanvas: Component = () => {
   let container!: HTMLDivElement;
   let map: maplibregl.Map | undefined;
+  const [mapReady, setMapReady] = createSignal(false);
   let marker: maplibregl.Marker | undefined;
   let startMarker: maplibregl.Marker | undefined;
   let endMarker: maplibregl.Marker | undefined;
@@ -153,10 +156,21 @@ export const MapCanvas: Component = () => {
     const destination = routeDestination();
 
     if (origin) updateRouteStartMarker(origin.lat, origin.lng);
-    else startMarker?.remove();
+    else {
+      startMarker?.remove();
+      startMarker = undefined;
+    }
 
     if (destination) updateRouteEndMarker(destination.lat, destination.lng);
-    else endMarker?.remove();
+    else {
+      endMarker?.remove();
+      endMarker = undefined;
+    }
+  }
+
+  function flyToFocus(focus: { lat: number; lng: number } | null | undefined) {
+    if (!map || !focus) return;
+    map.flyTo({ center: [focus.lng, focus.lat], zoom: 13, duration: 1200 });
   }
 
   onMount(async () => {
@@ -208,9 +222,11 @@ export const MapCanvas: Component = () => {
       resizeObserver.observe(container);
 
       map.on('load', () => {
+        setMapReady(true);
         addRouteLayers();
         drawRoute();
         syncRouteMarkers();
+        flyToFocus(mapFocus());
       });
 
       map.on('click', (e: maplibregl.MapMouseEvent) => {
@@ -251,6 +267,20 @@ export const MapCanvas: Component = () => {
     } else {
       clearRouteLayer();
     }
+  });
+
+  // Fly to search results; also keep the isochrone marker in sync when the
+  // origin is set programmatically (e.g. via the search bar).
+  createEffect(() => {
+    if (!mapReady()) return;
+    const focus = mapFocus();
+    if (focus) flyToFocus(focus);
+  });
+
+  createEffect(() => {
+    if (!mapReady() || activeTool() !== 'isochrone') return;
+    const o = origin();
+    if (o) updateIsochroneMarker(o.lat, o.lng);
   });
 
   return <div ref={container} class="absolute inset-0 w-full h-full" />;

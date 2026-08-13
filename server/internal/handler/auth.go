@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -13,27 +13,14 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	googleidtoken "google.golang.org/api/idtoken"
+
+	"github.com/alex/geopulse/server/internal/config"
 )
 
 var (
 	googleOAuthConfig *oauth2.Config
 	jwtSecret         []byte
 )
-
-func init() {
-	jwtSecret = []byte(os.Getenv("JWT_SECRET"))
-	googleOAuthConfig = &oauth2.Config{
-		ClientID:     os.Getenv("VITE_GOOGLE_CLIENT_ID"),
-		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		Endpoint:     google.Endpoint,
-		RedirectURL:  fmt.Sprintf("http://localhost:%s/api/v1/auth/callback", os.Getenv("PORT")),
-		Scopes: []string{
-			"openid",
-			"https://www.googleapis.com/auth/userinfo.email",
-			"https://www.googleapis.com/auth/userinfo.profile",
-		},
-	}
-}
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	state := fmt.Sprintf("state-%d", time.Now().Unix())
@@ -98,11 +85,24 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
-func AuthHandler(testMode bool) http.Handler {
+func AuthHandler(cfg *config.Config) http.Handler {
+	jwtSecret = []byte(cfg.JWTSecret)
+	googleOAuthConfig = &oauth2.Config{
+		ClientID:     cfg.GoogleClientID,
+		ClientSecret: cfg.GoogleClientSecret,
+		Endpoint:     google.Endpoint,
+		RedirectURL:  fmt.Sprintf("%s/api/v1/auth/callback", strings.TrimSuffix(cfg.AllowedOrigin, "/")),
+		Scopes: []string{
+			"openid",
+			"https://www.googleapis.com/auth/userinfo.email",
+			"https://www.googleapis.com/auth/userinfo.profile",
+		},
+	}
+
 	r := chi.NewRouter()
 
 	r.Get("/login", func(w http.ResponseWriter, r *http.Request) {
-		if testMode {
+		if cfg.TestMode {
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
@@ -113,7 +113,7 @@ func AuthHandler(testMode bool) http.Handler {
 	r.Get("/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		if testMode {
+		if cfg.TestMode {
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"authenticated": true,
 				"test_mode":     true,

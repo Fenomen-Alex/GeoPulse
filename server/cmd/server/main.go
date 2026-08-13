@@ -38,7 +38,7 @@ func main() {
 	r.Use(middleware.RateLimitMiddleware)
 
 	// Auth routes (public)
-	r.Mount("/api/v1/auth", handler.AuthHandler(cfg.TestMode))
+	r.Mount("/api/v1/auth", handler.AuthHandler(cfg))
 
 	// API Sub-router with auth middleware + test mode bypass
 	r.Route("/api/v1", func(api chi.Router) {

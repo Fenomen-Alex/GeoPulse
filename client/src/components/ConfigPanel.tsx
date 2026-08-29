@@ -8,6 +8,7 @@ import {
   setActiveTool,
   origin,
   isAnalyzing,
+  analysisError,
   travelMode,
   setTravelMode,
   maxMinutes,
@@ -174,14 +175,19 @@ export const ConfigPanel: Component<{ class?: string }> = (props) => {
           <Show
             when={activeTool() === 'route'}
             fallback={
-              <RunButton
-                onClick={runAnalysis}
-                disabled={!origin() || isAnalyzing()}
-                loading={isAnalyzing()}
-                loadingLabel="Calculating Isochrones..."
-                hint="Click Map to Set Origin"
-                label="Run Analysis"
-              />
+              <>
+                <RunButton
+                  onClick={runAnalysis}
+                  disabled={!origin() || isAnalyzing()}
+                  loading={isAnalyzing()}
+                  loadingLabel="Calculating Isochrones..."
+                  hint="Click Map to Set Origin"
+                  label="Run Analysis"
+                />
+                <Show when={analysisError()}>
+                  <p class="text-xs text-red-400" role="alert">{analysisError()}</p>
+                </Show>
+              </>
             }
           >
             <RunButton

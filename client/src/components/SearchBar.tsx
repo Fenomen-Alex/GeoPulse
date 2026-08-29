@@ -76,7 +76,7 @@ export const SearchBar: Component<{ class?: string }> = (props) => {
   });
 
   return (
-    <div class={`w-96 ${props.class ?? ''}`}>
+    <div class={`w-auto max-w-96 ${props.class ?? ''}`}>
       <div class="flex items-center gap-2 rounded-xl border border-zinc-800/80 bg-zinc-900/90 px-3 py-2.5 shadow-2xl backdrop-blur-md focus-within:border-cyan-500/50 transition-colors">
         <Search class="h-4 w-4 shrink-0 text-zinc-400" />
         <input

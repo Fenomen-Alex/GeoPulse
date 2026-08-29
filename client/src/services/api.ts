@@ -2,6 +2,7 @@ import { createSignal, onMount } from 'solid-js';
 
 interface AuthStatus {
   authenticated: boolean;
+  loading: boolean;
   user?: any;
   error?: string;
 }
@@ -9,15 +10,18 @@ interface AuthStatus {
 export const useAuth = () => {
   const [authStatus, setAuthStatus] = createSignal<AuthStatus>({
     authenticated: false,
+    loading: true,
   });
 
   const isTestMode = () =>
-    import.meta.env.VITE_TEST_MODE === 'true' || import.meta.env.VITE_NODE_ENV === 'test';
+    import.meta.env.DEV &&
+    (import.meta.env.VITE_TEST_MODE === 'true' || import.meta.env.VITE_NODE_ENV === 'test');
 
   const checkAuthStatus = async () => {
     if (isTestMode()) {
       setAuthStatus({
         authenticated: true,
+        loading: false,
         user: { id: 'test-user', name: 'Test User', email: 'test@geopulse.local' },
       });
       return;
@@ -28,17 +32,20 @@ export const useAuth = () => {
       if (res.ok) {
         const data = await res.json();
         setAuthStatus({
-          authenticated: true,
+          authenticated: data.authenticated === true,
+          loading: false,
           user: data.user,
         });
       } else {
         setAuthStatus({
           authenticated: false,
+          loading: false,
         });
       }
     } catch (err) {
       setAuthStatus({
         authenticated: false,
+        loading: false,
         error: err instanceof Error ? err.message : 'Authentication check failed',
       });
     }
@@ -48,28 +55,14 @@ export const useAuth = () => {
     if (isTestMode()) {
       setAuthStatus({
         authenticated: true,
+        loading: false,
         user: { id: 'test-user', name: 'Test User', email: 'test@geopulse.local' },
       });
       return { success: true };
     }
 
-    try {
-      // Open Google Auth modal
-      const res = await fetch('/api/v1/auth/login');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.authenticated) {
-          setAuthStatus({
-            authenticated: true,
-            user: data.user,
-          });
-          return data;
-        }
-      }
-      return { success: false, message: 'Login failed' };
-    } catch (err) {
-      return { success: false, message: err instanceof Error ? err.message : 'Login failed' };
-    }
+    window.location.href = '/api/v1/auth/login';
+    return { success: true };
   };
 
   const logout = async () => {
@@ -80,6 +73,7 @@ export const useAuth = () => {
       if (res.ok) {
         setAuthStatus({
           authenticated: false,
+          loading: false,
         });
         return { success: true };
       }

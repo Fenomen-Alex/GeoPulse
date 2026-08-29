@@ -3,10 +3,13 @@ import { type Component, createSignal, Show } from 'solid-js';
 export const ContactForm: Component = () => {
   const [submitted, setSubmitted] = createSignal(false);
   const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
+    setSubmitted(false);
 
     const form = e.target as HTMLFormElement;
     const data = new FormData(form);
@@ -26,9 +29,13 @@ export const ContactForm: Component = () => {
       if (res.ok) {
         setSubmitted(true);
         form.reset();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? 'Your request could not be sent. Please try again.');
       }
     } catch (err) {
       console.error('Contact form error:', err);
+      setError('Network error. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -106,9 +113,12 @@ export const ContactForm: Component = () => {
           </button>
 
           <Show when={submitted()}>
-            <p class="text-green-400 text-sm text-center">
+            <p class="text-green-400 text-sm text-center" role="status">
               Your request has been dispatched. Our team will adjust your quota shortly.
             </p>
+          </Show>
+          <Show when={error()}>
+            <p class="text-red-400 text-sm text-center" role="alert">{error()}</p>
           </Show>
         </form>
       </div>

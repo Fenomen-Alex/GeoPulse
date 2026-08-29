@@ -1,10 +1,10 @@
 import type { Component } from 'solid-js';
 
-const handleLogin = () => {
-  window.location.href = '/api/v1/auth/login';
-};
+interface HeroProps {
+  onOpenAuth: () => void;
+}
 
-export const Hero: Component = () => {
+export const Hero: Component<HeroProps> = (props) => {
   const scrollToContact = () => {
     document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -32,7 +32,7 @@ export const Hero: Component = () => {
           <div class="flex items-center gap-4 mt-4">
             <button
               type="button"
-              onClick={handleLogin}
+              onClick={props.onOpenAuth}
               class="py-3 px-6 bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-medium rounded-lg transition-colors"
             >
               Get Started Free

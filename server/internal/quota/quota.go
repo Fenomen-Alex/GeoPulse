@@ -37,3 +37,16 @@ func (q *Quota) Consume(userID string) (remaining int, allowed bool) {
 	q.used[key] = used
 	return DefaultDailyQuota - used, true
 }
+
+// Remaining returns the user's current allowance without consuming a run.
+func (q *Quota) Remaining(userID string) int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	key := fmt.Sprintf("%s:%s", userID, time.Now().UTC().Format("2006-01-02"))
+	remaining := DefaultDailyQuota - q.used[key]
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}

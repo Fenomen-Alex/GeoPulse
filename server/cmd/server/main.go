@@ -47,6 +47,7 @@ func main() {
 		api.Post("/analysis", analysisHandler.HandleAnalysis)
 		api.Post("/routes", routeHandler.Handle)
 		api.Get("/geocode", geocodeHandler.Handle)
+		api.Get("/quota", handler.NewQuotaStatusHandler(quotaTracker))
 	})
 
 	// Contact router (public)

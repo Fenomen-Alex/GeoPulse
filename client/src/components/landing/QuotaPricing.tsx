@@ -1,6 +1,10 @@
 import type { Component } from 'solid-js';
 
-export const QuotaPricing: Component = () => {
+interface QuotaPricingProps {
+  onOpenAuth: () => void;
+}
+
+export const QuotaPricing: Component<QuotaPricingProps> = (props) => {
   return (
     <section class="max-w-6xl mx-auto px-6 py-16 md:py-24">
       <h2 class="text-3xl md:text-4xl font-bold text-center text-zinc-100 mb-12">
@@ -93,7 +97,7 @@ export const QuotaPricing: Component = () => {
               <td class="py-4 px-4">
               <button
                 class="mt-4 w-full py-2 px-4 rounded-lg bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition-colors"
-                onClick={() => { window.location.href = '/api/v1/auth/login'; }}
+                onClick={props.onOpenAuth}
               >
                 Sign Up Free
               </button>

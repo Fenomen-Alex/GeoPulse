@@ -3,7 +3,6 @@ import type { Component } from 'solid-js';
 import { BarChart3 } from 'lucide-solid';
 import { Panel } from './Panel';
 import { analysisResult } from '../store/analysisStore';
-import { ISOCHRONE_COLORS } from '../constants/isochrone';
 
 export const AnalyticsDrawer: Component<{ class?: string }> = (props) => {
   return (
@@ -53,18 +52,19 @@ export const AnalyticsDrawer: Component<{ class?: string }> = (props) => {
               <div>
                 <span class="text-xs text-zinc-400 block mb-2">Isochrone Bands</span>
                 <div class="space-y-1.5">
-                  <For each={Object.entries(ISOCHRONE_COLORS)}>
-                    {([_minutes, config]) => (
+                  <For each={result().bands}>
+                    {(band) => (
                       <div class="flex items-center gap-2">
                         <span
                           class="inline-block h-3 w-3 rounded-sm border"
                           style={{
-                            'background-color': config.fill,
-                            opacity: config.fillOpacity,
-                            'border-color': config.stroke,
+                            'background-color': band.fillColor,
+                            opacity: band.fillOpacity,
+                            'border-color': band.strokeColor,
                           }}
                         />
-                        <span class="text-xs text-zinc-300">{config.label}</span>
+                        <span class="text-xs text-zinc-300">{band.minutes} min</span>
+                        <span class="ml-auto text-[10px] font-mono text-zinc-500">{band.area.toFixed(2)} km²</span>
                       </div>
                     )}
                   </For>

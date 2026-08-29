@@ -1,10 +1,10 @@
 import type { Component } from 'solid-js';
 
-const handleLogin = () => {
-  window.location.href = '/api/v1/auth/login';
-};
+interface LandingHeaderProps {
+  onOpenAuth: () => void;
+}
 
-export const LandingHeader: Component = () => {
+export const LandingHeader: Component<LandingHeaderProps> = (props) => {
   return (
     <header class="w-full py-4 px-6 flex items-center justify-between bg-zinc-900/80 border-b border-zinc-800/30">
       <div class="flex items-center gap-3">
@@ -36,19 +36,27 @@ export const LandingHeader: Component = () => {
       <div class="hidden md:flex items-center gap-4">
         <button
           type="button"
-          onClick={handleLogin}
+          onClick={props.onOpenAuth}
           class="py-2 px-4 text-sm text-zinc-300 hover:text-cyan-400 border border-zinc-700/50 hover:border-cyan-400/30 rounded-lg transition-all"
         >
           Sign In
         </button>
         <button
           type="button"
-          onClick={handleLogin}
+          onClick={props.onOpenAuth}
           class="py-2 px-4 text-sm bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 rounded-lg transition-colors"
         >
           Get Started
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={props.onOpenAuth}
+        class="md:hidden rounded-lg bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-300 transition-colors hover:bg-cyan-500/20"
+      >
+        Get Started
+      </button>
     </header>
   );
 };

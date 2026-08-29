@@ -2,6 +2,9 @@ package handler
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -22,13 +25,45 @@ var (
 	jwtSecret         []byte
 )
 
-func loginHandler(w http.ResponseWriter, r *http.Request) {
-	state := fmt.Sprintf("state-%d", time.Now().Unix())
+const oauthStateCookie = "geopulse_oauth_state"
+
+func loginHandler(w http.ResponseWriter, r *http.Request, secureCookies bool) {
+	stateBytes := make([]byte, 32)
+	if _, err := rand.Read(stateBytes); err != nil {
+		http.Error(w, `{"error":"authentication unavailable"}`, http.StatusInternalServerError)
+		return
+	}
+	state := base64.RawURLEncoding.EncodeToString(stateBytes)
+	http.SetCookie(w, &http.Cookie{
+		Name:     oauthStateCookie,
+		Value:    state,
+		Path:     "/api/v1/auth/callback",
+		MaxAge:   600,
+		HttpOnly: true,
+		Secure:   secureCookies,
+		SameSite: http.SameSiteLaxMode,
+	})
 	url := googleOAuthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "select_account"))
 	http.Redirect(w, r, url, http.StatusFound)
 }
 
-func callbackHandler(w http.ResponseWriter, r *http.Request) {
+func callbackHandler(w http.ResponseWriter, r *http.Request, secureCookies bool) {
+	stateCookie, err := r.Cookie(oauthStateCookie)
+	requestState := r.URL.Query().Get("state")
+	if err != nil || requestState == "" || subtle.ConstantTimeCompare([]byte(stateCookie.Value), []byte(requestState)) != 1 {
+		http.Error(w, `{"error":"invalid authentication state"}`, http.StatusUnauthorized)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     oauthStateCookie,
+		Value:    "",
+		Path:     "/api/v1/auth/callback",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   secureCookies,
+		SameSite: http.SameSiteLaxMode,
+	})
+
 	code := r.URL.Query().Get("code")
 	if code == "" {
 		http.Error(w, `{"error":"no authorization code"}`, http.StatusBadRequest)
@@ -70,13 +105,17 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 		"exp":     time.Now().Add(24 * time.Hour).Unix(),
 	}
 
-	tokenString, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, claimsJWT).SignedString(jwtSecret)
+	tokenString, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claimsJWT).SignedString(jwtSecret)
+	if err != nil {
+		http.Error(w, `{"error":"session creation failed"}`, http.StatusInternalServerError)
+		return
+	}
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "geopulse_session",
 		Value:    tokenString,
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   secureCookies,
 		MaxAge:   3600 * 24,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
@@ -100,15 +139,18 @@ func AuthHandler(cfg *config.Config) http.Handler {
 	}
 
 	r := chi.NewRouter()
+	secureCookies := strings.HasPrefix(strings.ToLower(cfg.AllowedOrigin), "https://")
 
 	r.Get("/login", func(w http.ResponseWriter, r *http.Request) {
 		if cfg.TestMode {
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
-		loginHandler(w, r)
+		loginHandler(w, r, secureCookies)
 	})
-	r.Get("/callback", callbackHandler)
+	r.Get("/callback", func(w http.ResponseWriter, r *http.Request) {
+		callbackHandler(w, r, secureCookies)
+	})
 
 	r.Get("/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -175,7 +217,7 @@ func AuthHandler(cfg *config.Config) http.Handler {
 			Value:    "",
 			Expires:  time.Unix(0, 0),
 			HttpOnly: true,
-			Secure:   false,
+			Secure:   secureCookies,
 			Path:     "/",
 			SameSite: http.SameSiteLaxMode,
 		})

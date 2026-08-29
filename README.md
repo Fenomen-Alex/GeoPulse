@@ -2,7 +2,7 @@
 
 Spatial intelligence SaaS for multi-modal reachability analysis, POI density indexing, and spatial workspace management.
 
-Drop a pin → Configure parameters → Run spatial calculation → Render isochrone contours and POI results.
+Drop a pin → Configure parameters → Run spatial calculation → Render reachability contours and accessibility estimates.
 
 ## Quick Start
 
@@ -11,11 +11,8 @@ Drop a pin → Configure parameters → Run spatial calculation → Render isoch
 cd client && npm ci
 cd ../server && go mod download
 
-# Start frontend dev server (proxies API to Go backend)
-cd client && npm run dev
-
-# Start Go backend
-cd server && go run ./cmd/server/main.go
+# Start the frontend and API together
+cd client && npm run dev:all
 ```
 
 Local dev: Frontend at `http://localhost:5173`, API at `http://localhost:8080`.
@@ -34,7 +31,7 @@ The app runs at `http://localhost:8080`.
 |---|---|
 | **Frontend** | SolidJS + Vite + Tailwind CSS v4 |
 | **Backend** | Go 1.26 + Chi router |
-| **Map** | MapLibre GL JS + Turf.js |
+| **Map** | MapLibre GL JS |
 | **Spatial API** | OpenRouteService (proxied) |
 | **Database** | Turso (LibSQL) via `database/sql` |
 | **Email** | Resend API for contact/quota extensions |
@@ -42,10 +39,11 @@ The app runs at `http://localhost:8080`.
 
 ## Features
 
-- Multi-modal isochrone analysis (walk, bike, drive) with 5–60 minute travel-time boundaries
+- Multi-modal reachability estimates (walk, bike, drive) with 5–60 minute synthetic bands
 - Street-level turn-by-turn route navigation (OpenRouteService Directions) drawn as road-network polylines
-- Real-time POI density indexing inside travel contours using Turf.js spatial intersections
+- Simulated POI and accessibility metrics, ready for replacement with a live POI provider
 - Token-bucket rate limiting with 15 runs/day default quota for authenticated users
+- Authenticated quota-status synchronization across page reloads via `GET /api/v1/quota`
 - Quota extension requests via contact form with Resend email dispatch
 
 ## Acceptance Criteria
@@ -88,4 +86,4 @@ See `example.env` at the repo root. Key variables:
 - `RESEND_API_KEY` for transactional emails
 - `GOOGLE_CLIENT_SECRET` for OIDC (frontend uses `VITE_GOOGLE_CLIENT_ID`)
 
-`VITE_TEST_MODE=true` env var + `?test=true` URL param bypasses auth for local testing.
+`VITE_TEST_MODE=true` enables the development-only test-user flow. Production builds compile the client-side bypass out.

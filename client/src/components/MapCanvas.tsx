@@ -16,6 +16,8 @@ import {
   setRouteResult,
   setOrigin,
   setAnalysisResult,
+  setAnalysisError,
+  analysisResult,
   handleMapClick,
 } from '../store/analysisStore';
 
@@ -28,6 +30,72 @@ export const MapCanvas: Component = () => {
   let marker: maplibregl.Marker | undefined;
   let startMarker: maplibregl.Marker | undefined;
   let endMarker: maplibregl.Marker | undefined;
+
+  function addIsochroneLayers() {
+    if (!map || map.getSource('isochrones')) return;
+
+    map.addSource('isochrones', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    });
+
+    map.addLayer({
+      id: 'isochrone-fills',
+      type: 'fill',
+      source: 'isochrones',
+      paint: {
+        'fill-color': ['get', 'fillColor'],
+        'fill-opacity': ['get', 'fillOpacity'],
+      },
+    });
+
+    map.addLayer({
+      id: 'isochrone-outlines',
+      type: 'line',
+      source: 'isochrones',
+      paint: {
+        'line-color': ['get', 'strokeColor'],
+        'line-width': 2,
+        'line-opacity': 0.9,
+      },
+    });
+  }
+
+  function drawIsochrones() {
+    if (!map) return;
+    const result = analysisResult();
+    if (!result?.bands?.length) return;
+
+    addIsochroneLayers();
+    const features = [...result.bands].reverse().map((band) => ({
+      ...band.geojson,
+      properties: {
+        ...(band.geojson.properties ?? {}),
+        minutes: band.minutes,
+        fillColor: band.fillColor,
+        strokeColor: band.strokeColor,
+        fillOpacity: band.fillOpacity,
+      },
+    }));
+    const source = map.getSource('isochrones') as maplibregl.GeoJSONSource | undefined;
+    source?.setData({ type: 'FeatureCollection', features });
+
+    const coordinates = result.bands.flatMap((band) => band.geojson.geometry.coordinates[0]);
+    if (coordinates.length) {
+      const bounds = coordinates.reduce(
+        (current, coordinate) => current.extend(coordinate as [number, number]),
+        new maplibregl.LngLatBounds(coordinates[0] as [number, number], coordinates[0] as [number, number]),
+      );
+      map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 800 });
+    }
+  }
+
+  function clearIsochroneLayers() {
+    if (!map) return;
+    if (map.getLayer('isochrone-outlines')) map.removeLayer('isochrone-outlines');
+    if (map.getLayer('isochrone-fills')) map.removeLayer('isochrone-fills');
+    if (map.getSource('isochrones')) map.removeSource('isochrones');
+  }
 
   function addRouteLayers() {
     if (!map || map.getSource('route-line')) return;
@@ -111,6 +179,7 @@ export const MapCanvas: Component = () => {
         const lngLat = marker!.getLngLat();
         setOrigin({ lat: lngLat.lat, lng: lngLat.lng });
         setAnalysisResult(null);
+        setAnalysisError(null);
       });
     }
   }
@@ -225,6 +294,8 @@ export const MapCanvas: Component = () => {
         setMapReady(true);
         addRouteLayers();
         drawRoute();
+        addIsochroneLayers();
+        drawIsochrones();
         syncRouteMarkers();
         flyToFocus(mapFocus());
       });
@@ -258,6 +329,7 @@ export const MapCanvas: Component = () => {
   createEffect(() => {
     if (activeTool() === 'route') {
       clearIsochroneMarker();
+      clearIsochroneLayers();
       syncRouteMarkers();
       if (routeResult()?.geojson) {
         drawRoute();
@@ -266,6 +338,11 @@ export const MapCanvas: Component = () => {
       }
     } else {
       clearRouteLayer();
+      if (analysisResult()?.bands?.length) {
+        drawIsochrones();
+      } else {
+        clearIsochroneLayers();
+      }
     }
   });
 

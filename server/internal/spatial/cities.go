@@ -53,6 +53,15 @@ func parseCityIndex(data []byte) ([]cityEntry, error) {
 	count := int(binary.LittleEndian.Uint32(data[len(cityIndexMagic):]))
 	off := len(cityIndexMagic) + 4
 
+	// Each entry requires at least three uint16 length prefixes plus 12 fixed
+	// bytes. Reject implausible counts before allocating so a corrupt index
+	// cannot trigger a huge make() (OOM) in NewCityIndex/parseCityIndex.
+	const minEntryBytes = 3*2 + 12
+	maxCount := (len(data) - off) / minEntryBytes
+	if count <= 0 || count > maxCount {
+		return nil, fmt.Errorf("implausible city index count %d", count)
+	}
+
 	cities := make([]cityEntry, 0, count)
 	for i := 0; i < count; i++ {
 		var c cityEntry

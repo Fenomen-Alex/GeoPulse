@@ -77,3 +77,20 @@ func UserRateLimitMiddleware(every time.Duration, burst int) func(http.Handler) 
 		})
 	}
 }
+
+// PerIPRateLimitMiddleware applies a token bucket keyed by the resolved client
+// IP regardless of authentication/session. Public endpoints that are abusable
+// (e.g. the contact form) use this so logged-in users cannot spam them either.
+func PerIPRateLimitMiddleware(every time.Duration, burst int) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			lim := getUserLimiter("ip:"+clientIP(r), rate.Every(every), burst)
+			if !lim.Allow() {
+				w.Header().Set("X-RateLimit-Reset", time.Now().Add(every).Format(time.RFC3339))
+				http.Error(w, `{"error":"Too many requests. Please try again later."}`, http.StatusTooManyRequests)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}

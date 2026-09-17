@@ -53,7 +53,7 @@ func main() {
 	})
 
 	// Contact router (public)
-	r.Mount("/api/v1/contact", handler.ContactRouter())
+	r.Mount("/api/v1/contact", handler.ContactRouter(cfg))
 
 	// Embedded Static Frontend Handler with SPA fallback
 	contentFS, _ := fs.Sub(publicFS, "public")

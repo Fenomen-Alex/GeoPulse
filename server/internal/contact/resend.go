@@ -15,6 +15,9 @@ type ContactRequest struct {
 	Email   string `json:"email"`
 	Subject string `json:"subject"`
 	Message string `json:"message"`
+	// Website is a hidden honeypot field. Human visitors never fill it; bots
+	// do. Populated requests are silently dropped without sending an email.
+	Website string `json:"website"`
 }
 
 func SendContactEmail(req ContactRequest) error {

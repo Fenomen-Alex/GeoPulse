@@ -121,3 +121,58 @@ func (db *DB) SaveContactRequest(name, email, subject, message, ip string) error
 	_, err := db.Exec(query, name, email, subject, message, ip)
 	return err
 }
+
+// Workspace is a persisted workbench state snapshot (center, zoom, and the
+// tool-specific inputs serialized as layers_json).
+type Workspace struct {
+	ID         string  `json:"id"`
+	UserID     string  `json:"user_id"`
+	Title      string  `json:"title"`
+	CenterLat  float64 `json:"center_lat"`
+	CenterLng  float64 `json:"center_lng"`
+	Zoom       float64 `json:"zoom"`
+	LayersJSON string  `json:"layers_json"`
+	CreatedAt  string  `json:"created_at"`
+}
+
+// SaveWorkspace upserts a workbench snapshot. Callers MUST ensure the user row
+// exists first (EnsureUser) — workspaces.user_id carries a foreign key.
+func (db *DB) SaveWorkspace(w Workspace) error {
+	query := `
+		INSERT INTO workspaces (id, user_id, title, center_lat, center_lng, zoom, layers_json)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			title = excluded.title,
+			center_lat = excluded.center_lat,
+			center_lng = excluded.center_lng,
+			zoom = excluded.zoom,
+			layers_json = excluded.layers_json;
+	`
+	_, err := db.Exec(query, w.ID, w.UserID, w.Title, w.CenterLat, w.CenterLng, w.Zoom, w.LayersJSON)
+	return err
+}
+
+// ListWorkspaces returns the user's saved snapshots, most recently created first.
+func (db *DB) ListWorkspaces(userID string) ([]Workspace, error) {
+	query := `
+		SELECT id, user_id, title, center_lat, center_lng, zoom, layers_json, created_at
+		FROM workspaces
+		WHERE user_id = ?
+		ORDER BY created_at ASC;
+	`
+	rows, err := db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var workspaces []Workspace
+	for rows.Next() {
+		var w Workspace
+		if err := rows.Scan(&w.ID, &w.UserID, &w.Title, &w.CenterLat, &w.CenterLng, &w.Zoom, &w.LayersJSON, &w.CreatedAt); err != nil {
+			return nil, err
+		}
+		workspaces = append(workspaces, w)
+	}
+	return workspaces, rows.Err()
+}

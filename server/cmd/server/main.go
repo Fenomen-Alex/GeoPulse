@@ -55,6 +55,7 @@ func main() {
 	analysisHandler := handler.NewAnalysisHandler(cfg, quotaTracker)
 	routeHandler := handler.NewRouteHandler(cfg, quotaTracker)
 	geocodeHandler := handler.NewGeocodeHandler()
+	workspaceHandler := handler.NewWorkspaceHandler(store)
 
 	r := chi.NewRouter()
 
@@ -74,6 +75,8 @@ func main() {
 		api.Post("/routes", routeHandler.Handle)
 		api.With(middleware.UserRateLimitMiddleware(500*time.Millisecond, 40)).Get("/geocode", geocodeHandler.Handle)
 		api.Get("/quota", handler.NewQuotaStatusHandler(quotaTracker))
+		api.Get("/workspaces", workspaceHandler.List)
+		api.Post("/workspaces", workspaceHandler.Save)
 	})
 
 	// Contact router (public)

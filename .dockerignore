@@ -1,0 +1,28 @@
+# Secrets — never ship into the build context
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# VCS / IDE
+.git
+.gitignore
+.idea/
+.vscode/
+
+# Dependencies & build output
+node_modules/
+client/dist/
+server/tmp/
+server/bin/
+*.db
+*.db-journal
+
+# Playwright artifacts
+.playwright-mcp/
+
+# Docs
+README.md
+AGENTS.md
+docs/

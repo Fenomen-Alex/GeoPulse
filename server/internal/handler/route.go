@@ -36,11 +36,11 @@ type RouteResponse struct {
 type RouteHandler struct {
 	cfg    *config.Config
 	routes RouteService
-	quota  *quota.Quota
+	quota  quota.Tracker
 }
 
 // NewRouteHandler builds a handler backed by the real OpenRouteService client.
-func NewRouteHandler(cfg *config.Config, quotaTracker *quota.Quota) *RouteHandler {
+func NewRouteHandler(cfg *config.Config, quotaTracker quota.Tracker) *RouteHandler {
 	return &RouteHandler{
 		cfg:    cfg,
 		routes: spatial.NewORSClient(cfg.ORSAPIKey),
@@ -55,6 +55,7 @@ func (h *RouteHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req RouteRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return

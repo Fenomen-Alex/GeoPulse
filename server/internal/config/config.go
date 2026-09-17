@@ -11,8 +11,7 @@ type Config struct {
 	Port               string
 	AllowedOrigin      string
 	JWTSecret          string
-	TursoDatabaseURL   string
-	TursoAuthToken     string
+	DBPath             string
 	GoogleClientID     string
 	GoogleClientSecret string
 	ORSAPIKey          string
@@ -28,11 +27,9 @@ func LoadConfig() (*Config, error) {
 	testMode := os.Getenv("VITE_TEST_MODE") == "true" || os.Getenv("NODE_ENV") == "test"
 
 	requiredVars := map[string]string{
-		"PORT":               "",
-		"ALLOWED_ORIGIN":     "",
-		"JWT_SECRET":         "",
-		"TURSO_DATABASE_URL": "",
-		"TURSO_AUTH_TOKEN":   "",
+		"PORT":           "",
+		"ALLOWED_ORIGIN": "",
+		"JWT_SECRET":     "",
 	}
 
 	if !testMode {
@@ -51,8 +48,14 @@ func LoadConfig() (*Config, error) {
 	port, _ := getEnv("PORT")
 	allowedOrigin, _ := getEnv("ALLOWED_ORIGIN")
 	jwtSecret, _ := getEnv("JWT_SECRET")
-	tursoDatabaseURL, _ := getEnv("TURSO_DATABASE_URL")
-	tursoAuthToken, _ := getEnv("TURSO_AUTH_TOKEN")
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		if testMode {
+			dbPath = ":memory:"
+		} else {
+			dbPath = "geopulse.db"
+		}
+	}
 	googleClientID, _ := getEnv("VITE_GOOGLE_CLIENT_ID")
 	googleClientSecret, _ := getEnv("GOOGLE_CLIENT_SECRET")
 	orsAPIKey, _ := getEnv("ORS_API_KEY")
@@ -60,12 +63,17 @@ func LoadConfig() (*Config, error) {
 	contactEmailTo, _ := getEnv("CONTACT_EMAIL_TO")
 	contactEmailFrom, _ := getEnv("CONTACT_EMAIL_FROM")
 
+	// A weak JWT secret lets attackers forge session cookies. Enforcement is
+	// relaxed in test mode where RequireAuth is bypassed anyway.
+	if !testMode && len(jwtSecret) < 32 {
+		return nil, fmt.Errorf("JWT_SECRET must be at least 32 characters in non-test mode")
+	}
+
 	return &Config{
 		Port:               port,
 		AllowedOrigin:      allowedOrigin,
 		JWTSecret:          jwtSecret,
-		TursoDatabaseURL:   tursoDatabaseURL,
-		TursoAuthToken:     tursoAuthToken,
+		DBPath:             dbPath,
 		GoogleClientID:     googleClientID,
 		GoogleClientSecret: googleClientSecret,
 		ORSAPIKey:          orsAPIKey,

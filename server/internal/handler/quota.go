@@ -10,7 +10,7 @@ import (
 
 // NewQuotaStatusHandler reports the shared analysis and routing allowance
 // without consuming a spatial run.
-func NewQuotaStatusHandler(tracker *quota.Quota) http.HandlerFunc {
+func NewQuotaStatusHandler(tracker quota.Tracker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID, ok := auth.GetUserIDFromContext(r.Context())
 		if !ok {

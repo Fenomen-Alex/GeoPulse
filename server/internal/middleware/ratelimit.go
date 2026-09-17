@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -45,6 +46,27 @@ func getLimiter(ip string) *rate.Limiter {
 	return entry.limiter
 }
 
+// clientIP resolves the effective client address for rate limiting. It prefers
+// the first X-Forwarded-For entry (set by Render/edge proxies) and falls back
+// to RemoteAddr with the port stripped. Keying the full RemoteAddr (which
+// includes an ephemeral port) would let clients bypass the limit by opening
+// new connections.
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		parts := strings.Split(xff, ",")
+		for _, p := range parts {
+			if ip := strings.TrimSpace(p); ip != "" {
+				return ip
+			}
+		}
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
 // RateLimitMiddleware applies token-bucket rate limiting per IP.
 // Guest: 10 requests/minute. Authenticated users are exempt.
 func RateLimitMiddleware(next http.Handler) http.Handler {
@@ -60,7 +82,7 @@ func RateLimitMiddleware(next http.Handler) http.Handler {
 
 		cookie, err := r.Cookie("geopulse_session")
 		if err != nil || cookie.Value == "" {
-			ip := r.RemoteAddr
+			ip := clientIP(r)
 			limiter := getLimiter(ip)
 			if !limiter.Allow() {
 				w.Header().Set("X-RateLimit-Reset", time.Now().Add(time.Minute).Format(time.RFC3339))

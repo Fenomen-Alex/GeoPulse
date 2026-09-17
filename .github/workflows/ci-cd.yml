@@ -34,6 +34,12 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Lint & Test Go Backend
+        run: |
+          cd server
+          go vet ./...
+          go test ./...
+
       - name: Test & Build SolidJS Frontend
         run: |
           cd client

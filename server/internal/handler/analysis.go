@@ -40,10 +40,10 @@ type AnalysisResponse struct {
 
 type AnalysisHandler struct {
 	cfg   *config.Config
-	quota *quota.Quota
+	quota quota.Tracker
 }
 
-func NewAnalysisHandler(cfg *config.Config, quotaTracker *quota.Quota) *AnalysisHandler {
+func NewAnalysisHandler(cfg *config.Config, quotaTracker quota.Tracker) *AnalysisHandler {
 	return &AnalysisHandler{cfg: cfg, quota: quotaTracker}
 }
 
@@ -54,6 +54,7 @@ func (h *AnalysisHandler) HandleAnalysis(w http.ResponseWriter, r *http.Request)
 	}
 
 	var req AnalysisRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return

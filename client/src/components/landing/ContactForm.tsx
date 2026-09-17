@@ -23,6 +23,7 @@ export const ContactForm: Component = () => {
           email: data.get('email'),
           subject: data.get('subject'),
           message: data.get('message'),
+          website: data.get('website'),
         }),
       });
 
@@ -49,6 +50,12 @@ export const ContactForm: Component = () => {
 
       <div class="max-w-2xl mx-auto">
         <form class="space-y-6" onSubmit={handleSubmit}>
+          {/* Honeypot: visually hidden, ignored by humans, traps bots. */}
+          <div class="absolute -left-[9999px]" aria-hidden="true">
+            <label for="website">Leave this field empty</label>
+            <input type="text" id="website" name="website" tabIndex={-1} autocomplete="off" />
+          </div>
+
           <div>
             <label for="name" class="block text-sm font-medium text-zinc-300">
               Name

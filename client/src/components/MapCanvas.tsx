@@ -1,6 +1,6 @@
 import { createEffect, createSignal, onMount, onCleanup } from 'solid-js';
 import type { Component } from 'solid-js';
-import * as maplibregl from 'maplibre-gl';
+import type * as maplibregl from 'maplibre-gl';
 
 // Native Vite worker isolation pipeline bundle
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
@@ -21,7 +21,10 @@ import {
   handleMapClick,
 } from '../store/analysisStore';
 
-maplibregl.setWorkerUrl(workerUrl);
+// Lazy-loaded on first render (inside onMount) so the ~1MB maplibre runtime is
+// split out of the landing page bundle. All value references below are guarded
+// by `map` being set, which only happens after this module resolves.
+let maplibre: typeof maplibregl | undefined;
 
 export const MapCanvas: Component = () => {
   let container!: HTMLDivElement;
@@ -84,7 +87,7 @@ export const MapCanvas: Component = () => {
     if (coordinates.length) {
       const bounds = coordinates.reduce(
         (current, coordinate) => current.extend(coordinate as [number, number]),
-        new maplibregl.LngLatBounds(coordinates[0] as [number, number], coordinates[0] as [number, number]),
+        new maplibre!.LngLatBounds(coordinates[0] as [number, number], coordinates[0] as [number, number]),
       );
       map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 800 });
     }
@@ -140,7 +143,7 @@ export const MapCanvas: Component = () => {
     if (coords?.length) {
       const bounds = coords.reduce(
         (b, c) => b.extend([c[0], c[1]]),
-        new maplibregl.LngLatBounds(coords[0], coords[0]),
+        new maplibre!.LngLatBounds(coords[0], coords[0]),
       );
       map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 800 });
     }
@@ -171,7 +174,7 @@ export const MapCanvas: Component = () => {
     if (marker) {
       marker.setLngLat([lng, lat]);
     } else {
-      marker = new maplibregl.Marker({ color: '#06b6d4', draggable: true })
+      marker = new maplibre!.Marker({ color: '#06b6d4', draggable: true })
         .setLngLat([lng, lat])
         .addTo(map);
 
@@ -190,7 +193,7 @@ export const MapCanvas: Component = () => {
     if (startMarker) {
       startMarker.setLngLat([lng, lat]);
     } else {
-      startMarker = new maplibregl.Marker({ color: '#10b981', draggable: true })
+      startMarker = new maplibre!.Marker({ color: '#10b981', draggable: true })
         .setLngLat([lng, lat])
         .addTo(map);
 
@@ -208,7 +211,7 @@ export const MapCanvas: Component = () => {
     if (endMarker) {
       endMarker.setLngLat([lng, lat]);
     } else {
-      endMarker = new maplibregl.Marker({ color: '#ef4444', draggable: true })
+      endMarker = new maplibre!.Marker({ color: '#ef4444', draggable: true })
         .setLngLat([lng, lat])
         .addTo(map);
 
@@ -246,6 +249,13 @@ export const MapCanvas: Component = () => {
     if (!container) return;
 
     try {
+      // Load the maplibre runtime + its stylesheet only when the workbench
+      // actually mounts, so the public landing page ships without either.
+      const loaded = await import('maplibre-gl');
+      await import('maplibre-gl/dist/maplibre-gl.css');
+      loaded.setWorkerUrl(workerUrl);
+      maplibre = loaded;
+
       const baseUrl = 'https://basemaps.cartocdn.com';
       const styleUrl = `${baseUrl}/gl/dark-matter-gl-style/style.json`;
 
@@ -276,14 +286,14 @@ export const MapCanvas: Component = () => {
         });
       }
 
-      map = new maplibregl.Map({
+      map = new maplibre.Map({
         container,
         style: styleData,
         center: [-122.4194, 37.7749],
         zoom: 12,
       });
 
-      map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+      map.addControl(new maplibre.NavigationControl(), 'bottom-right');
 
       const resizeObserver = new ResizeObserver(() => {
         map?.resize();

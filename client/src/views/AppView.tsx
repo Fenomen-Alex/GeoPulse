@@ -10,10 +10,15 @@ import { QuotaBar } from '../components/QuotaBar';
 import { TopBar } from '../components/TopBar';
 import { QuotaGateModal } from '../components/QuotaGateModal';
 import { activeTool, loadRemainingQuota, showQuotaModal } from '../store/analysisStore';
+import { loadWorkspace, startWorkspacePersistence } from '../store/workspaceStore';
 
 export const AppView: Component<{ user: any; onLogout: () => void }> = (props) => {
-  onMount(() => {
+  onMount(async () => {
     void loadRemainingQuota();
+    // Restore any saved snapshot first, then subscribe to changes so the
+    // hydration writes don't immediately overwrite the saved workspace.
+    await loadWorkspace();
+    startWorkspacePersistence();
   });
 
   return (

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/alex/geopulse/server/internal/spatial"
@@ -75,6 +76,31 @@ func TestGeocodeHandler_UpstreamError(t *testing.T) {
 
 	if w.Code != http.StatusBadGateway {
 		t.Fatalf("expected 502, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestGeocodeHandler_OfflineCityIndex(t *testing.T) {
+	// Real constructor: local city index first, remote fallback second.
+	// A city-level query must resolve fully offline without upstream calls.
+	h := NewGeocodeHandler()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/geocode?q=paris&limit=5", nil)
+	w := httptest.NewRecorder()
+
+	h.Handle(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp GeocodeResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(resp.Results) == 0 {
+		t.Fatal("expected offline city matches for paris")
+	}
+	if !strings.Contains(resp.Results[0].Label, "Paris") {
+		t.Errorf("expected Paris first, got %q", resp.Results[0].Label)
 	}
 }
 

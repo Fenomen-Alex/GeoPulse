@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"os"
 	"time"
@@ -14,6 +15,9 @@ type ContactRequest struct {
 	Email   string `json:"email"`
 	Subject string `json:"subject"`
 	Message string `json:"message"`
+	// Website is a hidden honeypot field. Human visitors never fill it; bots
+	// do. Populated requests are silently dropped without sending an email.
+	Website string `json:"website"`
 }
 
 func SendContactEmail(req ContactRequest) error {
@@ -39,7 +43,7 @@ func SendContactEmail(req ContactRequest) error {
 			<blockquote style="background: #18181b; color: #f4f4f5; padding: 12px; border-left: 4px solid #06b6d4;">
 				%s
 			</blockquote>
-		`, req.Name, req.Email, req.Subject, req.Message),
+		`, html.EscapeString(req.Name), html.EscapeString(req.Email), html.EscapeString(req.Subject), html.EscapeString(req.Message)),
 	}
 
 	jsonBytes, _ := json.Marshal(payload)

@@ -36,11 +36,11 @@ type RouteResponse struct {
 type RouteHandler struct {
 	cfg    *config.Config
 	routes RouteService
-	quota  *quota.Quota
+	quota  quota.Tracker
 }
 
 // NewRouteHandler builds a handler backed by the real OpenRouteService client.
-func NewRouteHandler(cfg *config.Config, quotaTracker *quota.Quota) *RouteHandler {
+func NewRouteHandler(cfg *config.Config, quotaTracker quota.Tracker) *RouteHandler {
 	return &RouteHandler{
 		cfg:    cfg,
 		routes: spatial.NewORSClient(cfg.ORSAPIKey),

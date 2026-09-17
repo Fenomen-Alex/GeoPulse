@@ -70,6 +70,18 @@ func (db *DB) UpsertUser(id, email, name, avatarURL string) error {
 	return err
 }
 
+// EnsureUser creates a placeholder user row on first quota interaction. The
+// OIDC flow does not yet persist a user row, so quota tracking inserts a
+// synthetic identity to satisfy the user_daily_usage foreign key. Idempotent.
+func (db *DB) EnsureUser(userID string) error {
+	query := `
+		INSERT OR IGNORE INTO users (id, email, name)
+		VALUES (?, ?, ?);
+	`
+	_, err := db.Exec(query, userID, userID+"@geopulse.local", userID)
+	return err
+}
+
 // GetUserDailyUsage returns the user's used count and configured quota. The
 // quota falls back to the default if the user row does not exist yet.
 func (db *DB) GetUserDailyUsage(userID string) (int, int, error) {

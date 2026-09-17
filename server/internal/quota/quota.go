@@ -10,9 +10,18 @@ import (
 // user per 24-hour rolling window (bucket-reset at midnight UTC).
 const DefaultDailyQuota = 15
 
+// Tracker is implemented by both the in-memory Quota and the DB-backed
+// Persistent tracker so handlers and status handlers work with either.
+type Tracker interface {
+	// Consume increments the user's usage and reports the remaining allowance
+	// for the window. If the user is over quota it returns (0, false).
+	Consume(userID string) (remaining int, allowed bool)
+	// Remaining reports the current allowance without consuming a run.
+	Remaining(userID string) int
+}
+
 // Quota tracks per-user daily spatial-run consumption in a concurrent-safe
-// in-memory store. Production can swap this for the Turso-backed counters in
-// internal/db without changing handler call sites.
+// in-memory store.
 type Quota struct {
 	mu   sync.Mutex
 	used map[string]int
@@ -50,3 +59,5 @@ func (q *Quota) Remaining(userID string) int {
 	}
 	return remaining
 }
+
+var _ Tracker = (*Quota)(nil)

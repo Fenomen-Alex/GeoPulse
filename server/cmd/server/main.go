@@ -31,7 +31,8 @@ func main() {
 	// Managed edge persistence (embedded SQLite, single-binary friendly).
 	// In test mode a missing/unusable store degrades gracefully to the
 	// in-memory tracker so dev/demo flows never hard-crash on DB issues.
-	store, err := db.InitDB(cfg.DBPath)
+	var store *db.DB
+	store, err = db.InitDB(cfg.DBPath)
 	if err == nil {
 		if err := db.Migrate(context.Background(), store); err != nil {
 			log.Fatalf("Failed to apply migrations: %v", err)
@@ -44,7 +45,12 @@ func main() {
 		log.Printf("Database unavailable, falling back to in-memory stores: %v", err)
 	}
 
-	quotaTracker := quota.New()
+	// Persist quota counters in the DB when available; otherwise keep the
+	// in-memory tracker so behavior is identical when no store is configured.
+	var quotaTracker quota.Tracker = quota.New()
+	if store != nil {
+		quotaTracker = quota.NewPersistent(store)
+	}
 
 	analysisHandler := handler.NewAnalysisHandler(cfg, quotaTracker)
 	routeHandler := handler.NewRouteHandler(cfg, quotaTracker)

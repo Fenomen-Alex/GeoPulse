@@ -13,7 +13,7 @@ func SecurityHeaders(next http.Handler) http.Handler {
 			"default-src 'self'; "+
 				"script-src 'self'; "+
 				"style-src 'self' 'unsafe-inline'; "+
-				"font-src 'self'; "+
+				"font-src 'self' data:; "+
 				"img-src 'self' data: blob:; "+
 				"connect-src 'self' https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com; "+
 				"worker-src 'self' blob:; "+

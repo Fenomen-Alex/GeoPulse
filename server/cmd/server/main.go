@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -98,6 +99,15 @@ func main() {
 			f, err := contentFS.Open(cleanPath)
 			if err == nil {
 				f.Close()
+				// Vite emits content-hashed filenames under /assets/, so those are
+				// immutable: cache them for a year and instruct clients/proxies
+				// not to revalidate. HTML and everything else stays no-store so a
+				// deploy never serves a stale index referencing old hashes.
+				if strings.HasPrefix("/"+cleanPath, "/assets/") {
+					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+				} else {
+					w.Header().Set("Cache-Control", "no-store")
+				}
 				fileServer.ServeHTTP(w, r)
 				return
 			}

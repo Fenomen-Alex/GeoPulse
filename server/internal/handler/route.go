@@ -55,6 +55,7 @@ func (h *RouteHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req RouteRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return

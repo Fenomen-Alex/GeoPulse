@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/alex/geopulse/server/internal/spatial"
 )
@@ -17,13 +18,25 @@ type GeocodeResponse struct {
 	Results []spatial.Place `json:"results"`
 }
 
+// GeocodeHandler answers free-text place searches. It resolves city-level
+// queries against an embedded offline index first and only calls the remote
+// Nominatim service when the local index has no match, minimizing upstream
+// dependence for the common case.
 type GeocodeHandler struct {
 	geocoder Geocoder
 }
 
-// NewGeocodeHandler builds a handler backed by the Nominatim client.
+// NewGeocodeHandler builds a handler backed by an offline city index with a
+// remote Nominatim fallback for address/street queries. Both tiers are wrapped
+// in a small result cache so duplicate searches never hit upstream again.
 func NewGeocodeHandler() *GeocodeHandler {
-	return &GeocodeHandler{geocoder: spatial.NewNominatimClient()}
+	geocoder := spatial.NewChainGeocoder(
+		spatial.NewCityIndex(),
+		spatial.NewNominatimClient(),
+	)
+	return &GeocodeHandler{
+		geocoder: spatial.NewCachingGeocoder(geocoder, 512, 24*time.Hour),
+	}
 }
 
 // Handle resolves a free-text query into coordinate suggestions.

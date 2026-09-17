@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -93,3 +94,93 @@ type nominatimResult struct {
 	Lon         string `json:"lon"`
 	DisplayName string `json:"display_name"`
 }
+
+// CachingGeocoder wraps a Geocoder with a small in-memory LRU result cache
+// keyed by normalized query (+limit). Street addresses and city coordinates
+// are stable over days, so repeated search-bar keystrokes and duplicate
+// queries never touch the upstream service again.
+type CachingGeocoder struct {
+	inner Geocoder
+	ttl   time.Duration
+	max   int
+
+	mu    sync.Mutex
+	cache map[string]cacheEntry
+}
+
+type cacheEntry struct {
+	places    []Place
+	expiresAt time.Time
+}
+
+// NewCachingGeocoder wraps inner with a cache holding up to max queries for ttl.
+func NewCachingGeocoder(inner Geocoder, max int, ttl time.Duration) *CachingGeocoder {
+	return &CachingGeocoder{
+		inner: inner,
+		ttl:   ttl,
+		max:   max,
+		cache: make(map[string]cacheEntry),
+	}
+}
+
+func (c *CachingGeocoder) Search(query string, limit int) ([]Place, error) {
+	if limit <= 0 || limit > 20 {
+		limit = 10
+	}
+	key := normalizeQuery(query) + "|" + strconv.Itoa(limit)
+	now := time.Now()
+
+	c.mu.Lock()
+	if e, ok := c.cache[key]; ok {
+		if now.Before(e.expiresAt) {
+			places := e.places
+			c.mu.Unlock()
+			return places, nil
+		}
+		delete(c.cache, key)
+	}
+	c.mu.Unlock()
+
+	places, err := c.inner.Search(query, limit)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err == nil {
+		c.cache[key] = cacheEntry{places: places, expiresAt: now.Add(c.ttl)}
+		if len(c.cache) > c.max {
+			c.evictExpired(now)
+		}
+		if len(c.cache) > c.max {
+			c.evictOldest()
+		}
+	}
+	return places, err
+}
+
+// evictExpired drops stale entries (also amortizes cleanup so a full scan is
+// rare). Callers must hold c.mu.
+func (c *CachingGeocoder) evictExpired(now time.Time) {
+	for k, e := range c.cache {
+		if !now.Before(e.expiresAt) {
+			delete(c.cache, k)
+		}
+	}
+}
+
+// evictOldest drops the single least-recently-used entry to make room.
+// Callers must hold c.mu.
+func (c *CachingGeocoder) evictOldest() {
+	var oldestKey string
+	var oldestExp time.Time
+	for k, e := range c.cache {
+		if oldestKey == "" || e.expiresAt.Before(oldestExp) {
+			oldestKey = k
+			oldestExp = e.expiresAt
+		}
+	}
+	if oldestKey != "" {
+		delete(c.cache, oldestKey)
+	}
+}
+
+var _ Geocoder = (*CachingGeocoder)(nil)

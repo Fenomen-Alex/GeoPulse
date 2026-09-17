@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"os"
 	"time"
@@ -39,7 +40,7 @@ func SendContactEmail(req ContactRequest) error {
 			<blockquote style="background: #18181b; color: #f4f4f5; padding: 12px; border-left: 4px solid #06b6d4;">
 				%s
 			</blockquote>
-		`, req.Name, req.Email, req.Subject, req.Message),
+		`, html.EscapeString(req.Name), html.EscapeString(req.Email), html.EscapeString(req.Subject), html.EscapeString(req.Message)),
 	}
 
 	jsonBytes, _ := json.Marshal(payload)

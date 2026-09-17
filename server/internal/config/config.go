@@ -60,6 +60,12 @@ func LoadConfig() (*Config, error) {
 	contactEmailTo, _ := getEnv("CONTACT_EMAIL_TO")
 	contactEmailFrom, _ := getEnv("CONTACT_EMAIL_FROM")
 
+	// A weak JWT secret lets attackers forge session cookies. Enforcement is
+	// relaxed in test mode where RequireAuth is bypassed anyway.
+	if !testMode && len(jwtSecret) < 32 {
+		return nil, fmt.Errorf("JWT_SECRET must be at least 32 characters in non-test mode")
+	}
+
 	return &Config{
 		Port:               port,
 		AllowedOrigin:      allowedOrigin,

@@ -9,6 +9,7 @@ import (
 )
 
 func ContactHandler(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
 	decoder := json.NewDecoder(r.Body)
 	var req contact.ContactRequest
 	err := decoder.Decode(&req)

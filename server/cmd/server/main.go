@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"path"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -35,6 +36,7 @@ func main() {
 
 	// Apply middleware
 	r.Use(middleware.CORS(cfg.AllowedOrigin))
+	r.Use(middleware.SecurityHeaders)
 	r.Use(middleware.RateLimitMiddleware)
 
 	// Auth routes (public)
@@ -46,7 +48,7 @@ func main() {
 		api.Get("/health", handler.HealthCheck)
 		api.Post("/analysis", analysisHandler.HandleAnalysis)
 		api.Post("/routes", routeHandler.Handle)
-		api.Get("/geocode", geocodeHandler.Handle)
+		api.With(middleware.UserRateLimitMiddleware(500*time.Millisecond, 40)).Get("/geocode", geocodeHandler.Handle)
 		api.Get("/quota", handler.NewQuotaStatusHandler(quotaTracker))
 	})
 
@@ -90,7 +92,17 @@ func main() {
 	log.Printf("GeoPulse server starting on %s", addr)
 	log.Printf("Allowed origin: %s", cfg.AllowedOrigin)
 
-	if err := http.ListenAndServe(addr, r); err != nil {
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           r,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 16, // 64 KiB – large enough, prevents header bloat
+	}
+
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }

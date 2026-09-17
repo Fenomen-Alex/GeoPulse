@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -12,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/alex/geopulse/server/internal/config"
+	"github.com/alex/geopulse/server/internal/db"
 	"github.com/alex/geopulse/server/internal/handler"
 	"github.com/alex/geopulse/server/internal/middleware"
 	"github.com/alex/geopulse/server/internal/quota"
@@ -24,6 +26,22 @@ func main() {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Managed edge persistence (embedded SQLite, single-binary friendly).
+	// In test mode a missing/unusable store degrades gracefully to the
+	// in-memory tracker so dev/demo flows never hard-crash on DB issues.
+	store, err := db.InitDB(cfg.DBPath)
+	if err == nil {
+		if err := db.Migrate(context.Background(), store); err != nil {
+			log.Fatalf("Failed to apply migrations: %v", err)
+		}
+		log.Printf("Database ready at %s", cfg.DBPath)
+	} else {
+		if !cfg.TestMode {
+			log.Fatalf("Failed to initialize database: %v", err)
+		}
+		log.Printf("Database unavailable, falling back to in-memory stores: %v", err)
 	}
 
 	quotaTracker := quota.New()

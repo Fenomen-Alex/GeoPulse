@@ -57,6 +57,8 @@ func main() {
 	routeHandler := handler.NewRouteHandler(cfg, quotaTracker)
 	geocodeHandler := handler.NewGeocodeHandler()
 	workspaceHandler := handler.NewWorkspaceHandler(store)
+	compareHandler := handler.NewCompareHandler(quotaTracker)
+	exportHandler := handler.NewExportHandler(quotaTracker)
 
 	r := chi.NewRouter()
 
@@ -78,6 +80,10 @@ func main() {
 		api.Get("/quota", handler.NewQuotaStatusHandler(quotaTracker))
 		api.Get("/workspaces", workspaceHandler.List)
 		api.Post("/workspaces", workspaceHandler.Save)
+		// Reachability comparison: two analyses, one quota charge.
+		api.Post("/compare", compareHandler.Handle)
+		// Export: render an analysis as GeoJSON/JSON/CSV (no quota charge).
+		api.Post("/export", exportHandler.Handle)
 	})
 
 	// Contact router (public)

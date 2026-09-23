@@ -9,6 +9,7 @@ import (
 
 	"github.com/alex/geopulse/server/internal/config"
 	"github.com/alex/geopulse/server/internal/quota"
+	"github.com/alex/geopulse/server/internal/spatial"
 )
 
 func TestHandleAnalysis_Success(t *testing.T) {
@@ -129,7 +130,7 @@ func TestGetBandMinutes(t *testing.T) {
 		{3, []int{3}},
 	}
 	for _, tt := range tests {
-		result := getBandMinutes(tt.input)
+		result := spatial.BandMinutesFor(tt.input)
 		if len(result) != len(tt.expected) {
 			t.Errorf("getBandMinutes(%d): expected %v, got %v", tt.input, tt.expected, result)
 		}

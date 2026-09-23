@@ -49,6 +49,18 @@ export const [routeResult, setRouteResult] = createSignal<any | null>(null);
 export const [isRouting, setIsRouting] = createSignal<boolean>(false);
 export const [routeError, setRouteError] = createSignal<string | null>(null);
 
+// Comparison mode: side-by-side reachability analysis.
+export const [compareResult, setCompareResult] = createSignal<any | null>(null);
+export const [isComparing, setIsComparing] = createSignal<boolean>(false);
+export const [compareError, setCompareError] = createSignal<string | null>(null);
+export const [compareOrigin, setCompareOrigin] = createSignal<Location | null>(null);
+
+// POI category filter toggles.
+export const [poiFilters, setPoiFilters] = createSignal<string[]>([]);
+
+// Visualization mode: 'bands' (discrete rings) | 'heatmap' (continuous).
+export const [vizMode, setVizMode] = createSignal<'bands' | 'heatmap'>('bands');
+
 // Latest map focus request from the search bar; MapCanvas reacts by flying to it.
 export const [mapFocus, setMapFocus] = createSignal<Location | null>(null);
 
@@ -202,4 +214,88 @@ export async function runRoute() {
   } finally {
     setIsRouting(false);
   }
+}
+
+// Runs a reachability comparison between the current origin and a second
+// origin. Consumes one quota charge for the whole comparison.
+export async function runCompare() {
+  const leftOrigin = origin();
+  const rightOrigin = compareOrigin();
+  if (!leftOrigin || !rightOrigin) return;
+
+  setIsComparing(true);
+  setCompareError(null);
+  try {
+    const res = await fetch('/api/v1/compare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        left: {
+          lat: leftOrigin.lat,
+          lng: leftOrigin.lng,
+          mode: travelMode(),
+          minutes: maxMinutes(),
+        },
+        right: {
+          lat: rightOrigin.lat,
+          lng: rightOrigin.lng,
+          mode: travelMode(),
+          minutes: maxMinutes(),
+        },
+      }),
+    });
+
+    if (res.status === 429) {
+      setRemainingQuota(0);
+      setShowQuotaModal(true);
+      return;
+    }
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setCompareError(data.error ?? 'Comparison failed. Please try again.');
+      return;
+    }
+
+    const data = await res.json();
+    setCompareResult(data);
+    if (typeof data.remaining_quota === 'number') {
+      setRemainingQuota(data.remaining_quota);
+    }
+  } catch (err) {
+    console.error('Comparison failed', err);
+    setCompareError('Network error. Please try again.');
+  } finally {
+    setIsComparing(false);
+  }
+}
+
+// Triggers a download of the current analysis as GeoJSON, JSON, or CSV.
+// Exporting does NOT consume a spatial run — the client already paid for it.
+export function exportAnalysis(format: 'geojson' | 'json' | 'csv') {
+  const currentOrigin = origin();
+  if (!currentOrigin) return;
+
+  const params = new URLSearchParams({
+    lat: String(currentOrigin.lat),
+    lng: String(currentOrigin.lng),
+    mode: travelMode(),
+    minutes: String(maxMinutes()),
+    format,
+  });
+  // Open in a new tab so the browser shows the download prompt without
+  // navigating away from the workbench.
+  window.open(`/api/v1/export?${params.toString()}`, '_blank');
+}
+
+// Toggles a POI category filter. Sending an empty array means "all
+// categories" (the server's default distribution).
+export function togglePoiCategory(cat: string) {
+  setPoiFilters((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
+}
+
+export function clearCompare() {
+  setCompareOrigin(null);
+  setCompareResult(null);
+  setCompareError(null);
 }

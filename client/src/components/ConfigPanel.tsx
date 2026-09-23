@@ -20,6 +20,15 @@ import {
   resetRoute,
   runAnalysis,
   runRoute,
+  compareOrigin,
+  isComparing,
+  runCompare,
+  clearCompare,
+  exportAnalysis,
+  togglePoiCategory,
+  poiFilters,
+  vizMode,
+  setVizMode,
 } from '../store/analysisStore';
 
 const TRAVEL_MODES = [
@@ -52,6 +61,24 @@ const ToolButton: Component<{
     }`}
   >
     <props.icon class="h-4 w-4" />
+    {props.label}
+  </button>
+);
+
+const FilterChip: Component<{
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}> = (props) => (
+  <button
+    type="button"
+    onClick={props.onClick}
+    class={`flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-all ${
+      props.active
+        ? 'bg-cyan-500 text-zinc-950'
+        : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+    }`}
+  >
     {props.label}
   </button>
 );
@@ -112,6 +139,115 @@ export const ConfigPanel: Component<{ class?: string }> = (props) => {
                       )}
                     </For>
                   </div>
+                </div>
+
+                {/* Comparison Origin */}
+                <Show when={!isComparing()}>
+                  <div>
+                    <label class="text-xs text-zinc-400 mb-1.5 block">Compare Origin</label>
+                    {compareOrigin() ? (
+                      <p class="text-xs text-zinc-100 font-mono tabular-nums">{formatCoords(compareOrigin()!)}</p>
+                    ) : (
+                      <p class="text-xs text-zinc-400 italic">Shift-click map to set comparison origin.</p>
+                    )}
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={runCompare}
+                      disabled={!origin() || !compareOrigin() || isComparing()}
+                      class="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all ${
+                        isComparing()
+                          ? 'bg-cyan-500 text-zinc-950'
+                          : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                      }"
+                    >
+                      {isComparing() ? 'Comparing...' : 'Run Comparison'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearCompare}
+                      class="flex-1 inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-medium transition-all hover:bg-zinc-800 hover:text-zinc-200"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </Show>
+
+                {/* POI Filters */}
+                <div>
+                  <label class="text-xs text-zinc-400 mb-1.5 block">POI Categories</label>
+                  <div class="flex flex-wrap gap-1">
+                    <For each={[
+                      { label: 'Amenity', value: 'amenity' },
+                      { label: 'Food', value: 'food' },
+                      { label: 'Transit', value: 'transit' },
+                      { label: 'Shopping', value: 'shopping' },
+                      { label: 'Education', value: 'education' },
+                      { label: 'Health', value: 'health' },
+                    ]}>
+                      {(cat) => (
+                        <FilterChip
+                          active={poiFilters().includes(cat.value)}
+                          label={cat.label}
+                          onClick={() => togglePoiCategory(cat.value)}
+                        />
+                      )}
+                    </For>
+                  </div>
+                  <p class="text-xs text-zinc-500 mt-1">
+                    {poiFilters().length === 0
+                      ? 'All categories'
+                      : `${poiFilters().length} selected`}
+                  </p>
+                </div>
+
+                {/* Visualization Mode */}
+                <div>
+                  <label class="text-xs text-zinc-400 mb-1.5 block">Visualization</label>
+                  <div class="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setVizMode('bands')}
+                      class={`flex-1 inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs font-medium transition-all ${
+                        vizMode() === 'bands'
+                          ? 'bg-cyan-500 text-zinc-950'
+                          : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                      }`}
+                    >
+                      Bands
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVizMode('heatmap')}
+                      class={`flex-1 inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs font-medium transition-all ${
+                        vizMode() === 'heatmap'
+                          ? 'bg-cyan-500 text-zinc-950'
+                          : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                      }`}
+                    >
+                      Heatmap
+                    </button>
+                  </div>
+                </div>
+
+                {/* Export */}
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => exportAnalysis('geojson')}
+                    class="flex-1 inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs font-medium transition-all hover:bg-zinc-800 hover:text-zinc-200"
+                  >
+                    Export GeoJSON
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => exportAnalysis('json')}
+                    class="flex-1 inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs font-medium transition-all hover:bg-zinc-800 hover:text-zinc-200"
+                  >
+                    Export JSON
+                  </button>
                 </div>
               </>
             }
